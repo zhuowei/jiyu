@@ -1,0 +1,39 @@
+
+
+func main () -> int {
+    
+}
+
+
+/*
+    Cool idea: we have a block construct like Swift has autorelease blocks, except you can use it for any data structure
+    and the data structure implements a constructor and destructor
+
+    MyCoolStruct :: struct {
+        func construct() {
+            // do stuff at begining of block
+        }
+
+        func destruct() {
+            // do stuff at end of block
+        }
+    }
+
+    @MyCoolStruct {
+        // construct here
+
+        // ...
+        
+        // destruct here
+    }
+
+    // This would be syntactic sugar for declaring the struct within a block
+
+    {
+        my_pool: Pool; // construct then destruct at end of block
+
+        // do stuff ...
+
+        // destruct here
+    }
+*/
