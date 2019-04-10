@@ -24,7 +24,7 @@ struct Atom_Table {
 
     Atom *find_atom(String name) {
         u32 hash = hash_key(name);
-        for (s64 i = 0; i < data.count; ++i) {
+        for (array_count_type i = 0; i < data.count; ++i) {
             auto it = data[i];
             if (it->hash == hash) {
                 if (it->name == name) return it;
@@ -38,7 +38,7 @@ struct Atom_Table {
         u32 hash = 5381;
         s16 c = 0;;
 
-        for (s64 i = 0; i < str.length; ++i) {
+        for (string_length_type i = 0; i < str.length; ++i) {
             // double cast to ensure sign extension
             c =  (s16) (s8) str[i];
             hash = ((hash << 5) + hash) + (u32) c;

@@ -12,7 +12,7 @@ struct Compiler;
 struct Parser {
     Compiler *compiler;
     Lexer *lexer;
-    s64 current_token = 0;
+    array_count_type current_token = 0;
 
     Parser(Lexer *lexer) {
         this->lexer = lexer;

@@ -3,6 +3,8 @@
 #define GENERAL_H
 
 
+#include <stdlib.h>
+
 #include <stdint.h>
 typedef int64_t s64;
 typedef int32_t s32;
@@ -18,9 +20,15 @@ typedef uint8_t  u8;
 
 #include <string.h>
 
+#ifdef ENV64
+typedef s64 string_length_type;
+#else
+typedef s32 string_length_type;
+#endif
+
 struct String {
     char *data = nullptr;
-    s64 length = 0;
+    string_length_type length = 0;
 
     String() { }
 
@@ -29,17 +37,17 @@ struct String {
     //     this->length = strlen(str)
     // }
 
-    char operator[](s64 index) const {
+    char operator[](string_length_type index) const {
         assert(index >= 0 && index < length);
 
         return data[index];
     }
 
-    String substring(s64 start, s64 slen) {
+    String substring(string_length_type start, string_length_type slen) {
         assert(start < length && start+slen <= length);
 
         String s;
-        s.data += start;
+        s.data = data + start;
         s.length = slen;
         return  s;
     }
@@ -60,8 +68,10 @@ inline String to_string(char *c_string) {
 }
 
 inline char *to_c_string(String s) {
-    char *mem = (char *)malloc(s.length + 1);
-    memcpy(mem, s.data, s.length);
+    auto length = s.length;
+
+    char *mem = (char *)malloc(length + 1);
+    memcpy(mem, s.data, length);
     mem[s.length] = 0;
     return mem;
 }
@@ -72,7 +82,7 @@ inline bool operator==(const String &s, const String &t) {
     if (t.data == nullptr && s.data != nullptr) return false;
     if (s.data == nullptr && t.data == nullptr) return true;
 
-    for (s64 i = 0; i < s.length; ++i) {
+    for (string_length_type i = 0; i < s.length; ++i) {
         if (s[i] != t[i]) return false;
     }
 
@@ -82,18 +92,20 @@ inline bool operator==(const String &s, const String &t) {
 inline String copy_string(String s) {
     String out;
     out.length = s.length;
+
+    auto length = s.length;
     if (s.data && s.length) {
-        out.data = (char *)malloc(s.length);
-        memcpy(out.data, s.data, out.length);
+        out.data = (char *)malloc(length);
+        memcpy(out.data, s.data, length);
     }
     return out;
 }
 
 struct Span {
-    s64 start;
-    s64 length;
+    string_length_type start;
+    string_length_type length;
 
-    Span(s64 start = 0, s64 length = 0) {
+    Span(string_length_type start = 0, string_length_type length = 0) {
         assert(start >= 0);
         assert(length >= 0);
 
@@ -105,12 +117,12 @@ struct Span {
         return (!(text.length < start || text.length < start + length));
     }
 
-    void map_to_text_coordinates(String text, s64 *line_start, s64 *char_start, s64 *line_end, s64 *char_end) {
+    void map_to_text_coordinates(String text, string_length_type *line_start, string_length_type *char_start, string_length_type *line_end, string_length_type *char_end) {
         assert(fits_in_string(text));
 
-        s64 line_count = 0;
-        s64 char_count = 0;
-        for (s64 i = 0; i < text.length; ++i) {
+        string_length_type line_count = 0;
+        string_length_type char_count = 0;
+        for (string_length_type i = 0; i < text.length; ++i) {
             if (i == start) {
                 *line_start = line_count;
                 *char_start = char_count;
@@ -153,19 +165,25 @@ struct TextSpan {
     }
 };
 
+#ifdef ENV64
+typedef s64 array_count_type;
+#else
+typedef s32 array_count_type;
+#endif
+
 template<typename T>
 struct Array {
     T *data = nullptr;
-    s64 count = 0;
-    s64 allocated = 0;
+    array_count_type count = 0;
+    array_count_type allocated = 0;
 
     const int NEW_MEM_CHUNK_ELEMENT_COUNT =  16;
 
-    Array(s64 reserve_amount = 0) {
+    Array(array_count_type reserve_amount = 0) {
         reserve(reserve_amount);
     }
 
-    void reserve(s64 amount) {
+    void reserve(array_count_type amount) {
         if (amount <= 0) amount = NEW_MEM_CHUNK_ELEMENT_COUNT;
         if (amount <= allocated) return;
 
@@ -179,7 +197,7 @@ struct Array {
         data = new_mem;
     }
 
-    void resize(s64 amount) {
+    void resize(array_count_type amount) {
         reserve(amount);
         count = amount;
         // @TODO maybe default initalized all elements
@@ -200,7 +218,7 @@ struct Array {
         return result;
     }
 
-    T &operator[] (s64 index) {
+    T &operator[] (array_count_type index) {
         assert(index >= 0 && index < count);
         return data[index];
     }
@@ -216,13 +234,13 @@ struct Array {
 
 
 // @Incomplete
-struct Pool {
-    struct Chunk {
-        void *data = nullptr;
-        s64 used = 0;
-        s64 allocated = 0;
-    };
-    Array<>
-};
+// struct Pool {
+//     struct Chunk {
+//         void *data = nullptr;
+//         s64 used = 0;
+//         s64 allocated = 0;
+//     };
+//     Array<>
+// };
 
 #endif

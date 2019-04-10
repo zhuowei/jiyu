@@ -63,7 +63,7 @@ Token Lexer::lex_token() {
             current_char++;
         }
 
-        s64 length = current_char - start;
+        string_length_type length = current_char - start;
         Token result = make_string_token(Token::IDENTIFIER, Span(start, length), text.substring(start, length));
         if      (result.string == to_string("func")) result.type = Token::KEYWORD_FUNC;
         else if (result.string == to_string("void")) result.type = Token::KEYWORD_VOID;
@@ -71,13 +71,13 @@ Token Lexer::lex_token() {
         return result;
     } else if (text[current_char] == '-') {
         if (current_char+1 < text.length && text[current_char+1] == '>') {
-            int start = current_char;
+            string_length_type start = current_char;
             current_char += 2;
             return make_token(Token::ARROW, Span(start, 2));
         }
     } else if (text[current_char] == '/') {
         if (current_char+1 < text.length && text[current_char+1] == '*') {
-            s64 start = current_char;
+            string_length_type start = current_char;
             current_char += 2;
             s64 stack = 1;
             while (current_char < text.length && stack > 0) {
@@ -87,18 +87,20 @@ Token Lexer::lex_token() {
                         current_char += 2;
                         continue;
                     }
-                } if (text[current_char] == '/') {
+                }
+
+                if (text[current_char] == '/') {
                     if (current_char+1 < text.length && text[current_char+1] == '*') {
                         stack++;
                         current_char += 2;
                         continue;
                     }
-                } else {
-                    current_char++;
                 }
+
+                current_char++;
             }
 
-            s64 length = current_char - start;
+            string_length_type length = current_char - start;
             // Returning a token here because we dont return pointers to tokens
             // and if we returned a recursive lex_token() call, we can get defeated quite quickly from
             // people spamming comment-after-comment.
@@ -108,7 +110,7 @@ Token Lexer::lex_token() {
     }
 
     char c = text[current_char];
-    int start = current_char++;
+    auto start = current_char++;
     return make_token((Token::Type)c, Span(start, 1));
 }
 
@@ -116,6 +118,8 @@ void Lexer::tokenize_text() {
     Token tok;
     do {
         tok = lex_token();
+
+        // Ignore Token::COMMENT since in most cases we dont care about these
         if (tok.type == Token::COMMENT) continue;
 
         tokens.add(tok);

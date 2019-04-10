@@ -36,7 +36,7 @@ struct Compiler;
 struct Lexer {
     String filename;
 
-    s64 current_char = 0;
+    string_length_type current_char = 0;
     String text;
 
     Array<Token> tokens;
