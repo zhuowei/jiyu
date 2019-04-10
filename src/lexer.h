@@ -9,6 +9,7 @@ struct Token {
         END = 256,
         IDENTIFIER,
         KEYWORD_FUNC,
+        KEYWORD_VAR,
         KEYWORD_VOID,
         KEYWORD_INT,
 

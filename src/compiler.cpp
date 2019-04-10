@@ -1,6 +1,8 @@
 
+#include "general.h"
 #include "compiler.h"
 #include "lexer.h"
+#include "parser.h"
 
 #include <stdio.h> // for vprintf
 
@@ -16,6 +18,16 @@ Atom *Compiler::make_atom(String name) {
 }
 
 void Compiler::report_error_valist(String filename, String source, Span error_location, char *fmt, va_list args) {
+
+    string_length_type l0;
+    string_length_type c0;
+
+    string_length_type l1;
+    string_length_type c1;
+
+    error_location.map_to_text_coordinates(parser->lexer->text, &l0, &c0, &l1, &c1);
+
+    printf("%.*s:%d,%d: ", filename.length, filename.data, l0, c0);
     vprintf(fmt, args);
 
     // @TODO print the error region, highlight the span we care about

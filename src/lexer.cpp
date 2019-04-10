@@ -65,7 +65,10 @@ Token Lexer::lex_token() {
 
         string_length_type length = current_char - start;
         Token result = make_string_token(Token::IDENTIFIER, Span(start, length), text.substring(start, length));
+
+        // @Cleanup find a faster way to implement these things
         if      (result.string == to_string("func")) result.type = Token::KEYWORD_FUNC;
+        else if (result.string == to_string("var"))  result.type = Token::KEYWORD_VAR;
         else if (result.string == to_string("void")) result.type = Token::KEYWORD_VOID;
         else if (result.string == to_string("int"))  result.type = Token::KEYWORD_INT;
         return result;

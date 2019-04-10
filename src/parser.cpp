@@ -65,17 +65,47 @@ void Parser::parse_scope(Ast_Scope *scope, bool requires_braces) {
     if (requires_braces && !expect_and_eat((Token::Type) '}')) return;
 }
 
+Ast_Declaration *Parser::parse_variable_declaration(bool expect_var_keyword) {
+    if (expect_var_keyword && !expect_and_eat(Token::KEYWORD_VAR)) return nullptr;
+
+    // @TODO
+}
+
 Ast_Function *Parser::parse_function() {
     expect_and_eat(Token::KEYWORD_FUNC);
+
+    Ast_Function *function = new Ast_Function();
 
     Ast_Identifier *ident = parse_identifier();
     if (!ident) return nullptr;
 
     if (!expect_and_eat((Token::Type) '(')) return nullptr;
-    // @Incomplete parse parameters
+    
+    Token *token = peek_token();
+    while (token->type != Token::END) {
+
+        if (token->type == ')') break;
+
+        Ast_Declaration *decl = parse_variable_declaration(false);
+        if (decl) function->arguments.add(decl);
+
+        if (compiler->errors_reported) return nullptr;
+
+        token = peek_token();
+    }
+
     if (!expect_and_eat((Token::Type) ')')) return nullptr;
 
     if (!expect_and_eat(Token::ARROW)) return nullptr;
 
-    
+    // @Temporary
+    if (!expect_and_eat(Token::KEYWORD_INT)) return nullptr;
+
+    Ast_Scope *scope = new Ast_Scope();
+    parse_scope(scope, true);
+
+    function->identifier = ident;
+    function->scope = scope;
+
+    return function;
 }

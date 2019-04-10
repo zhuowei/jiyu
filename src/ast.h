@@ -18,21 +18,27 @@ struct Ast_Statement {
 
 };
 
+struct Ast_Identifier : Ast_Expression {
+    Atom *name = nullptr;
+};
+
+struct Ast_Declaration : Ast_Statement {
+    Ast_Identifier *identifier = nullptr;
+    Ast_Expression *initializer_expression = nullptr;
+};
+
 struct Ast_Scope : Ast_Statement {
+    Ast_Scope *parent = nullptr;
     Array<Ast_Statement *> statements;
 };
 
-struct Ast_Identifier {
-    Atom *name;
-};
-
-struct Ast_Lambda {
-
-};
-
 struct Ast_Function : Ast_Statement {
+    Ast_Identifier *identifier;
 
-    Ast_Lambda *lambda;
+    Array<Ast_Declaration *> arguments;
+    Array<Ast_Declaration *> returns;
+
+    Ast_Scope *scope = nullptr;
 };
 
 
