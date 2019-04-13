@@ -6,6 +6,10 @@
 
 struct Token {
     enum Type {
+        EQUALS = '=',
+        SEMICOLON = ';',
+        COLON = ':',
+
         END = 256,
         IDENTIFIER,
         KEYWORD_FUNC,

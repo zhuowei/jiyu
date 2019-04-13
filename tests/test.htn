@@ -1,6 +1,6 @@
 
 
-func main () -> int {
+func main (arg: int, arg2: int) -> void {
     
 }
 

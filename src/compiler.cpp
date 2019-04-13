@@ -6,6 +6,29 @@
 
 #include <stdio.h> // for vprintf
 
+static Ast_Type_Info *make_int_type(bool is_signed, s64 size) {
+    Ast_Type_Info *info = new Ast_Type_Info();
+    info->type = Ast_Type_Info::INTEGER;
+    info->is_signed = is_signed;
+    info->size = size;
+    return info;
+}
+
+void Compiler::init() {
+    type_void = new Ast_Type_Info();
+    type_void->type = Ast_Type_Info::VOID;
+
+    type_int8  = make_int_type(true, 1);
+    type_int16 = make_int_type(true, 2);
+    type_int32 = make_int_type(true, 4);
+    type_int64 = make_int_type(true, 8);
+
+    type_uint8  = make_int_type(false, 1);
+    type_uint16 = make_int_type(false, 2);
+    type_uint32 = make_int_type(false, 4);
+    type_uint64 = make_int_type(false, 8);
+}
+
 Atom *Compiler::make_atom(String name) {
     Atom *atom = atom_table->find_atom(name);
     if (!atom) {

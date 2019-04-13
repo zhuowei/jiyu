@@ -11,6 +11,7 @@ struct Lexer;
 struct Parser;
 struct Token;
 struct Span;
+struct LLVM_Generator;
 
 struct Atom {
     String name;
@@ -52,15 +53,30 @@ struct Compiler {
     s64 errors_reported = 0;
 
     Parser *parser;
+    LLVM_Generator *llvm_gen;
 
     Atom_Table *atom_table;
 
     Ast_Scope *global_scope;
 
+    Ast_Type_Info *type_void;
+    Ast_Type_Info *type_int8;
+    Ast_Type_Info *type_int16;
+    Ast_Type_Info *type_int32;
+    Ast_Type_Info *type_int64;
+
+    Ast_Type_Info *type_uint8;
+    Ast_Type_Info *type_uint16;
+    Ast_Type_Info *type_uint32;
+    Ast_Type_Info *type_uint64;
+    
+
     Compiler() {
         atom_table = new Atom_Table();
         global_scope = new Ast_Scope();
     }
+
+    void init();
 
     Atom *make_atom(String name);
 

@@ -4,6 +4,7 @@
 #include "compiler.h"
 #include "lexer.h"
 #include "parser.h"
+#include "llvm.h"
 
 
 #include <stdio.h>
@@ -53,6 +54,7 @@ int main(int argc, char **argv) {
     }
 
     Compiler compiler;
+    compiler.init();
     Lexer *lexer = new Lexer(&compiler, source, filename);
     lexer->tokenize_text();
 
@@ -70,4 +72,13 @@ int main(int argc, char **argv) {
     }
 
     compiler.parser->parse_scope(compiler.global_scope, false);
+    compiler.llvm_gen = new LLVM_Generator(&compiler);
+    compiler.llvm_gen->init();
+
+    for (auto &stmt : compiler.global_scope->statements) {
+        if (stmt->type == AST_FUNCTION) {
+            auto function = reinterpret_cast<Ast_Function *>(stmt);
+            compiler.llvm_gen->emit_function(function);
+        }
+    }
 }

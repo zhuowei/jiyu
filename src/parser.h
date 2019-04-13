@@ -29,7 +29,9 @@ struct Parser {
     Ast_Expression *parse_primary_expression();
     Ast_Expression *parse_postfix_expression();
     Ast_Expression *parse_expression();
-    Ast_Statement *parse_statement();
+    Ast_Expression *parse_statement();
+
+    Ast_Type_Info *parse_type_info();
 
     Ast_Declaration *parse_variable_declaration(bool expect_var_keyword);
     void parse_scope(Ast_Scope *scope, bool requires_braces);
