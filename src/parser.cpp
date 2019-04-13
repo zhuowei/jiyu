@@ -46,6 +46,29 @@ Ast_Identifier *Parser::parse_identifier() {
     return ident;
 }
 
+Ast_Expression *Parser::parse_primary_expression() {
+
+}
+
+Ast_Expression *Parser::parse_postfix_expression() {
+
+}
+
+Ast_Expression *Parser::parse_expression() {
+
+}
+
+Ast_Statement *parse_statement() {
+    Ast_Expression *left = parse_expression();
+
+    Token *token = peek_token();
+    if (token->type == '=') {
+        Ast_Expression *right = parse_expression();
+    }
+
+    
+}
+
 void Parser::parse_scope(Ast_Scope *scope, bool requires_braces) {
     if (requires_braces && !expect_and_eat((Token::Type) '{')) return;
 
