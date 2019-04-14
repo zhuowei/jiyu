@@ -14,6 +14,14 @@ static Ast_Type_Info *make_int_type(bool is_signed, s64 size) {
     return info;
 }
 
+char *Compiler::get_temp_c_string(String s) {
+    char *mem = (char *)malloc(s.length + 1); // @Leak
+
+    memcpy(mem, s.data, s.length);
+    mem[s.length] = 0;
+    return mem;
+}
+
 void Compiler::init() {
     type_void = new Ast_Type_Info();
     type_void->type = Ast_Type_Info::VOID;
@@ -35,6 +43,8 @@ Atom *Compiler::make_atom(String name) {
         atom = new Atom();
         atom->name = copy_string(name);
         atom->hash = atom_table->hash_key(name);
+
+        atom_table->data.add(atom);
     }
 
     return atom;
@@ -61,6 +71,18 @@ void Compiler::report_error_valist(String filename, String source, Span error_lo
 void Compiler::report_error(Token *tok, char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    report_error_valist(tok->filename, tok->text_span.string, tok->text_span.span, fmt, args);
+    String filename;
+    String source;
+    Span span;
+
+    if (tok) {
+        filename = tok->filename;
+        source = tok->text_span.string;
+        span = tok->text_span.span;
+    }
+
+    report_error_valist(filename, source, span, fmt, args);
     va_end(args);
+
+    __builtin_debugtrap();
 }

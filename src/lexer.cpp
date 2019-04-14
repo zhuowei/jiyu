@@ -1,5 +1,6 @@
 
 #include "lexer.h"
+#include "compiler.h"
 
 
 static bool is_whitespace(char c) {
@@ -46,6 +47,12 @@ Token Lexer::make_string_token(Token::Type type, Span span, String string) {
     return t;
 }
 
+Token Lexer::make_integer_token(s64 value, Span span) {
+    Token t = make_token(Token::INTEGER, span);
+    t.integer = value;
+    return t;
+}
+
 void Lexer::eat_whitespace() {
     while (current_char < text.length && is_whitespace(text[current_char])) {
         current_char++;
@@ -72,6 +79,15 @@ Token Lexer::lex_token() {
         else if (result.string == to_string("void")) result.type = Token::KEYWORD_VOID;
         else if (result.string == to_string("int"))  result.type = Token::KEYWORD_INT;
         return result;
+    } else if (is_digit(text[current_char])) {
+        auto start = current_char;
+
+        while (current_char < text.length && is_digit(text[current_char])) current_char++;
+
+        char *value_string = compiler->get_temp_c_string(text.substring(start, current_char - start));
+        auto value = atoll(value_string);
+
+        return make_integer_token(value, Span(start, current_char - start));
     } else if (text[current_char] == '-') {
         if (current_char+1 < text.length && text[current_char+1] == '>') {
             string_length_type start = current_char;
@@ -104,9 +120,22 @@ Token Lexer::lex_token() {
             }
 
             string_length_type length = current_char - start;
+            // :CommentTokens:
             // Returning a token here because we dont return pointers to tokens
             // and if we returned a recursive lex_token() call, we can get defeated quite quickly from
             // people spamming comment-after-comment.
+
+            Token result = make_string_token(Token::COMMENT, Span(start, length), text.substring(start, length));
+            return result;
+        } else if (current_char+1 < text.length && text[current_char+1] == '/') {
+            string_length_type start = current_char;
+            current_char += 2;
+
+            while (current_char < text.length && text[current_char] != '\n') current_char++;
+
+            string_length_type length = current_char - start;
+            
+            // :CommentTokens:
             Token result = make_string_token(Token::COMMENT, Span(start, length), text.substring(start, length));
             return result;
         }

@@ -19,6 +19,7 @@ set (HTN_SRCS
     src/lexer.cpp
     src/compiler.cpp
     src/llvm.cpp
+    src/sema.cpp
 )
 
 if (WIN32)

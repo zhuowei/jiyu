@@ -11,7 +11,10 @@ struct Token {
         COLON = ':',
 
         END = 256,
+        INTEGER,
         IDENTIFIER,
+
+
         KEYWORD_FUNC,
         KEYWORD_VAR,
         KEYWORD_VOID,
@@ -27,6 +30,7 @@ struct Token {
     String filename;
 
     String string;
+    s64 integer;
 
     Token() {}
 
@@ -56,6 +60,7 @@ struct Lexer {
     Token make_token(Token::Type type, Span span);
     Token make_eof_token();
     Token make_string_token(Token::Type type, Span span, String string);
+    Token make_integer_token(s64 value, Span span);
     
     void eat_whitespace();
     Token lex_token();

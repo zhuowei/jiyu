@@ -12,6 +12,7 @@ struct Parser;
 struct Token;
 struct Span;
 struct LLVM_Generator;
+struct Sema;
 
 struct Atom {
     String name;
@@ -53,6 +54,7 @@ struct Compiler {
     s64 errors_reported = 0;
 
     Parser *parser;
+    Sema *sema;
     LLVM_Generator *llvm_gen;
 
     Atom_Table *atom_table;
@@ -75,6 +77,8 @@ struct Compiler {
         atom_table = new Atom_Table();
         global_scope = new Ast_Scope();
     }
+
+    char *get_temp_c_string(String s);
 
     void init();
 

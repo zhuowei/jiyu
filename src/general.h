@@ -219,6 +219,18 @@ struct Array {
         return result;
     }
 
+    void clear() {
+        count = 0;
+    }
+
+    void reset() {
+        count = 0;
+        allocated = 0;
+
+        if (data) free(data);
+        data = nullptr;
+    }
+
     T &operator[] (array_count_type index) {
         assert(index >= 0 && index < count);
         return data[index];
@@ -233,6 +245,19 @@ struct Array {
     }
 };
 
+template<typename A, typename B>
+struct Tuple {
+    A item1;
+    B item2;
+};
+
+template<typename A, typename B>
+Tuple<A, B> MakeTuple(A a, B b) {
+    Tuple<A, B> t;
+    t.item1 = a;
+    t.item2 = b;
+    return t;
+}
 
 // @Incomplete
 // struct Pool {

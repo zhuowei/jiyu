@@ -47,7 +47,24 @@ Ast_Identifier *Parser::parse_identifier() {
 }
 
 Ast_Expression *Parser::parse_primary_expression() {
-    return parse_identifier();
+    Token *token = peek_token();
+
+    if (token->type == Token::IDENTIFIER)
+        return parse_identifier();
+
+    if (token->type == Token::INTEGER) {
+        next_token();
+
+        Ast_Literal *lit = new Ast_Literal();
+        lit->literal_type = Ast_Literal::INTEGER;
+        lit->integer_value = token->integer;
+
+        // @TODO mark for infer
+
+        return lit;
+    }
+
+    return nullptr;
 }
 
 Ast_Expression *Parser::parse_postfix_expression() {
@@ -66,7 +83,9 @@ Ast_Expression *Parser::parse_statement() {
     }
 
     if (token->type == Token::KEYWORD_VAR) {
-        return parse_variable_declaration(true);
+        auto var = parse_variable_declaration(true);
+        if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
+        return var;
     }
 
 
@@ -75,11 +94,15 @@ Ast_Expression *Parser::parse_statement() {
 
     token = peek_token();
     if (token->type == Token::EQUALS) {
+        next_token();
+
         Ast_Expression *right = parse_expression();
         Ast_Binary_Expression *bin = new Ast_Binary_Expression();
         bin->operator_type = Token::EQUALS;
         bin->left = left;
         bin->right = right;
+
+        left = bin;
     }
 
     if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
@@ -96,7 +119,13 @@ void Parser::parse_scope(Ast_Scope *scope, bool requires_braces) {
         if (requires_braces && token->type == '}') break;
 
         Ast_Expression *stmt = parse_statement();
-        if (stmt) scope->statements.add(stmt);
+        if (stmt) {
+            scope->statements.add(stmt);
+
+            if (stmt->type == AST_DECLARATION || stmt->type == AST_FUNCTION) {
+                scope->declarations.add(stmt);
+            }
+        }
 
         if (compiler->errors_reported) return;
 
@@ -109,17 +138,40 @@ void Parser::parse_scope(Ast_Scope *scope, bool requires_braces) {
 Ast_Declaration *Parser::parse_variable_declaration(bool expect_var_keyword) {
     if (expect_var_keyword && !expect_and_eat(Token::KEYWORD_VAR)) return nullptr;
 
+    Token *ident_token = peek_token(); // used for error below, @Cleanup we want to be able to report errors using an Ast
     Ast_Identifier *ident = parse_identifier();
     if (!ident) return nullptr;
 
-    if (!expect_and_eat(Token::COLON)) return nullptr;
-
-    Ast_Type_Info *type_info = parse_type_info();
-    if (!type_info) return nullptr;
-
     Ast_Declaration *decl = new Ast_Declaration();
     decl->identifier = ident;
-    decl->type_info = type_info;
+
+    Token *token = peek_token();
+    if (token->type == Token::COLON) {
+        next_token();
+
+        Ast_Type_Info *type_info = parse_type_info();
+        if (!type_info) return nullptr;
+
+        
+        decl->type_info = type_info;
+    }
+
+    token = peek_token();
+    if (token->type == Token::EQUALS) {
+        next_token();
+
+        Ast_Expression *expression = parse_expression();
+        if (!expression) return nullptr;
+
+        decl->initializer_expression = expression;
+    }
+
+    if (!decl->initializer_expression && !decl->type_info) {
+        // @TODO maybe this should be moved to semantic analysis
+        compiler->report_error(ident_token, "Declared variable must be declared with a type or be initialized.\n");
+        return nullptr;
+    }
+
 
     return decl;
 }

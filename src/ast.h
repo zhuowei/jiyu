@@ -14,6 +14,7 @@ enum Ast_Type {
     AST_DECLARATION,
     AST_SCOPE,
     AST_FUNCTION,
+    AST_LITERAL,
 };
 
 struct Ast {
@@ -54,9 +55,29 @@ struct Ast_Binary_Expression : Ast_Expression {
     Ast_Expression *right = nullptr;
 };
 
+struct Ast_Declaration;
+
 struct Ast_Identifier : Ast_Expression {
     Ast_Identifier() { type = AST_IDENTIFIER; }
     Atom *name = nullptr;
+
+    Ast_Expression *resolved_declaration = nullptr;
+};
+
+struct Ast_Literal : Ast_Expression {
+    Ast_Literal() { type = AST_LITERAL; }
+
+    enum Type {
+        INTEGER,
+        STRING,
+        FLOAT,
+    };
+
+    Type literal_type;
+
+    s64 integer_value;
+    double float_value;
+    String string_value;
 };
 
 struct Ast_Declaration : Ast_Expression {
@@ -69,6 +90,7 @@ struct Ast_Scope : Ast_Expression {
     Ast_Scope() { type = AST_SCOPE; }
     Ast_Scope *parent = nullptr;
     Array<Ast_Expression *> statements;
+    Array<Ast_Expression *> declarations; // really should only contain Ast_Declaration and Ast_Function
 };
 
 struct Ast_Function : Ast_Expression {

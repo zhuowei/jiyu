@@ -5,6 +5,7 @@
 #include "lexer.h"
 #include "parser.h"
 #include "llvm.h"
+#include "sema.h"
 
 
 #include <stdio.h>
@@ -58,6 +59,8 @@ int main(int argc, char **argv) {
     Lexer *lexer = new Lexer(&compiler, source, filename);
     lexer->tokenize_text();
 
+    if (compiler.errors_reported) return -1;
+
     Parser *parser = new Parser(lexer);
     compiler.parser = parser;
 
@@ -72,6 +75,14 @@ int main(int argc, char **argv) {
     }
 
     compiler.parser->parse_scope(compiler.global_scope, false);
+
+    if (compiler.errors_reported) return -1;
+
+    compiler.sema = new Sema(&compiler);
+    compiler.sema->typecheck_scope(compiler.global_scope);
+
+    if (compiler.errors_reported) return -1;
+
     compiler.llvm_gen = new LLVM_Generator(&compiler);
     compiler.llvm_gen->init();
 
@@ -81,4 +92,8 @@ int main(int argc, char **argv) {
             compiler.llvm_gen->emit_function(function);
         }
     }
+
+    if (compiler.errors_reported) return -1;
+
+    return 0;
 }

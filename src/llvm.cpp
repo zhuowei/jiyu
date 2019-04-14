@@ -71,6 +71,104 @@ FunctionType *LLVM_Generator::create_function_type(Ast_Function *function) {
     return FunctionType::get(type_void, ArrayRef<Type *>(arguments.data, arguments.count), false);
 }
 
+Value *LLVM_Generator::get_value_for_decl(Ast_Declaration *decl) {
+    for (auto &it : decl_value_map) {
+        if (it.item1 == decl) {
+            return it.item2;
+        }
+    }
+
+    return nullptr;
+}
+
+static Value *create_alloca_in_entry(IRBuilder<> *irb, Type *type) {
+    auto current_block = irb->GetInsertBlock();
+
+    auto func = current_block->getParent();
+
+    BasicBlock *entry = &func->getEntryBlock();
+    irb->SetInsertPoint(entry->getTerminator());
+    Value *alloca = irb->CreateAlloca(type);
+
+    irb->SetInsertPoint(current_block);
+
+    return alloca;
+}
+
+Value *LLVM_Generator::emit_expression(Ast_Expression *expression) {
+    switch (expression->type) {
+        case AST_SCOPE: {
+            auto scope = static_cast<Ast_Scope *>(expression);
+            emit_scope(scope);
+
+            return nullptr;
+        }
+
+        case AST_BINARY_EXPRESSION: {
+            auto bin = static_cast<Ast_Binary_Expression *>(expression);
+
+            Value *left  = emit_expression(bin->left);
+            Value *right = emit_expression(bin->right);
+
+            if (bin->operator_type == Token::EQUALS) {
+                // if we got here, left must be a pointer type
+
+                irb->CreateStore(right, left);
+                return nullptr;
+            } else {
+                assert(false);
+            }
+        }
+
+        case AST_LITERAL: {
+            auto lit = static_cast<Ast_Literal *>(expression);
+
+            switch (lit->literal_type) {
+                case Ast_Literal::INTEGER: return ConstantInt::get(get_type(lit->type_info), lit->integer_value);
+                default: return nullptr;
+            }
+        }
+
+        case AST_IDENTIFIER: {
+            auto ident = static_cast<Ast_Identifier *>(expression);
+            assert(ident->resolved_declaration);
+
+            assert(ident->resolved_declaration->type == AST_DECLARATION);
+            auto decl = static_cast<Ast_Declaration *>(ident->resolved_declaration);
+
+            return get_value_for_decl(decl);
+        }
+
+        case AST_DECLARATION: {
+            auto decl = static_cast<Ast_Declaration *>(expression);
+            if (decl->initializer_expression) {
+                auto value = emit_expression(decl->initializer_expression);
+                irb->CreateStore(value, get_value_for_decl(decl));
+            }
+            return nullptr;
+        }
+    }
+
+    return nullptr;
+}
+
+void LLVM_Generator::emit_scope(Ast_Scope *scope) {
+    // setup variable mappings
+    for (auto &it : scope->declarations) {
+        if (it->type != AST_DECLARATION) continue;
+        auto decl = static_cast<Ast_Declaration *>(it);
+
+        auto alloca = create_alloca_in_entry(irb, get_type(it->type_info));
+
+        assert(get_value_for_decl(decl) == nullptr);
+        decl_value_map.add(MakeTuple(decl, alloca));
+    }
+
+    for (auto &it : scope->statements) {
+        emit_expression(it);
+    }
+}
+
 void LLVM_Generator::emit_function(Ast_Function *function) {
     assert(function->identifier && function->identifier->name);
 
@@ -79,7 +177,15 @@ void LLVM_Generator::emit_function(Ast_Function *function) {
 
     // create entry block
     BasicBlock *entry = BasicBlock::Create(*llvm_context, "entry", func);
+    BasicBlock *starting_block = BasicBlock::Create(*llvm_context, "start", func);
+
+    irb->SetInsertPoint(entry);
+    irb->CreateBr(starting_block);
+
+    irb->SetInsertPoint(starting_block);
+    emit_scope(function->scope);
 
     func->dump();
+    decl_value_map.clear();
 }
 
