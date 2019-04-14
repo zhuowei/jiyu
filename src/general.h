@@ -30,7 +30,7 @@ struct String {
     char *data = nullptr;
     string_length_type length = 0;
 
-    String() { }
+    String() { data = nullptr; }
 
     // String(char *str) {
     //     this->data = str;
@@ -195,6 +195,7 @@ struct Array {
         }
 
         data = new_mem;
+        allocated = amount;
     }
 
     void resize(array_count_type amount) {
@@ -205,7 +206,7 @@ struct Array {
     }
 
     void add(T element) {
-        if (count+1 > allocated) reserve(allocated + NEW_MEM_CHUNK_ELEMENT_COUNT);
+        if (count+1 >= allocated) reserve(allocated + NEW_MEM_CHUNK_ELEMENT_COUNT);
 
         data[count] = element;
         count += 1;
