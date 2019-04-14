@@ -35,18 +35,6 @@ void LLVM_Generator::init() {
     InitializeAllAsmParsers();
     InitializeAllAsmPrinters();
 
-    llvm_context = new LLVMContext();
-    llvm_module = new Module("Htn Module", *llvm_context);
-    irb = new IRBuilder<>(*llvm_context);
-
-    type_void = Type::getVoidTy(*llvm_context);
-    type_i8   = Type::getInt8Ty(*llvm_context);
-    type_i16  = Type::getInt16Ty(*llvm_context);
-    type_i32  = Type::getInt32Ty(*llvm_context);
-    type_i64  = Type::getInt64Ty(*llvm_context);
-}
-
-void LLVM_Generator::finalize() {
     std::string TargetTriple = llvm::sys::getDefaultTargetTriple();
     std::string Error;
     auto Target = TargetRegistry::lookupTarget(TargetTriple, Error);
@@ -64,7 +52,37 @@ void LLVM_Generator::finalize() {
 
     TargetOptions opt;
     auto RM = Optional<Reloc::Model>();
-    auto TargetMachine = Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
+    TargetMachine = Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
+
+
+
+    llvm_context = new LLVMContext();
+    llvm_module = new Module("Htn Module", *llvm_context);
+    irb = new IRBuilder<>(*llvm_context);
+
+    type_void = Type::getVoidTy(*llvm_context);
+    type_i8   = Type::getInt8Ty(*llvm_context);
+    type_i16  = Type::getInt16Ty(*llvm_context);
+    type_i32  = Type::getInt32Ty(*llvm_context);
+    type_i64  = Type::getInt64Ty(*llvm_context);
+
+    type_string_length = nullptr;
+    if (TargetMachine->getPointerSize(0) == 4) {
+        type_string_length = type_i32;
+    } else if (TargetMachine->getPointerSize(0) == 8) {
+        type_string_length = type_i64;
+    }
+
+    assert(type_string_length);
+
+
+    // Matches the definition in general.h
+    type_string = StructType::create(*llvm_context, { type_i8->getPointerTo(), type_string_length }, "string", true/*packed*/);
+}
+
+void LLVM_Generator::finalize() {
+    // @Cleanup duplicate
+    std::string TargetTriple = llvm::sys::getDefaultTargetTriple();
 
     llvm_module->setDataLayout(TargetMachine->createDataLayout());
     llvm_module->setTargetTriple(TargetTriple);
@@ -110,6 +128,10 @@ Type *LLVM_Generator::get_type(Ast_Type_Info *type) {
             case 8: return type_i64;
             default: assert(false);
         }
+    }
+
+    if (type->type == Ast_Type_Info::STRING) {
+        return type_string;
     }
 
     assert(false);
@@ -158,6 +180,16 @@ static Value *create_alloca_in_entry(IRBuilder<> *irb, Type *type) {
     return alloca;
 }
 
+Value *LLVM_Generator::create_string_literal(Ast_Literal *lit) {
+    assert(lit->literal_type == Ast_Literal::STRING);
+
+    bool add_null = true;
+    Constant *data = irb->CreateGlobalStringPtr(string_ref(lit->string_value));
+    Constant *length = ConstantInt::get(type_string_length, lit->string_value.length);
+
+    return ConstantStruct::get(type_string, { data, length });
+}
+
 Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalue) {
     switch (expression->type) {
         case AST_SCOPE: {
@@ -186,6 +218,7 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
 
             switch (lit->literal_type) {
                 case Ast_Literal::INTEGER: return ConstantInt::get(get_type(lit->type_info), lit->integer_value);
+                case Ast_Literal::STRING:  return create_string_literal(lit);
                 default: return nullptr;
             }
         }

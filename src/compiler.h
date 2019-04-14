@@ -71,6 +71,8 @@ struct Compiler {
     Ast_Type_Info *type_uint16;
     Ast_Type_Info *type_uint32;
     Ast_Type_Info *type_uint64;
+
+    Ast_Type_Info *type_string;
     
 
     Compiler() {

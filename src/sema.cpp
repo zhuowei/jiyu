@@ -73,6 +73,16 @@ void Sema::typecheck_expression(Ast_Expression *expression) {
 
                 decl->type_info = decl->initializer_expression->type_info;
             }
+
+            if (decl->type_info && decl->initializer_expression) {
+                if (decl->type_info != decl->initializer_expression->type_info) {
+                    // @FixMe report_error
+                    // @TODO report the types here
+                    // @TODO attempt to implciit cast if available
+                    compiler->report_error(nullptr, "Attempt to initialize variable with expression of incompatible type.");
+                }
+            }
+
             break;
         }
 
@@ -80,6 +90,17 @@ void Sema::typecheck_expression(Ast_Expression *expression) {
             auto bin = static_cast<Ast_Binary_Expression *>(expression);
             typecheck_expression(bin->left);
             typecheck_expression(bin->right);
+
+            assert(bin->left->type_info);
+            assert(bin->right->type_info);
+
+            if (bin->left->type_info != bin->right->type_info) {
+                // @FixMe report_error
+                // @TODO report types
+                // @TODO attempt to implicit cast
+                // @TOOD report operator
+                compiler->report_error(nullptr, "Incompatible types found on lhs and rhs of binary operator.");
+            }
 
             // @Hack @Incomplete
             bin->type_info = bin->left->type_info;
@@ -90,7 +111,8 @@ void Sema::typecheck_expression(Ast_Expression *expression) {
             auto lit = static_cast<Ast_Literal *>(expression);
 
             // @Incomplete
-            lit->type_info = compiler->type_int32;
+            if      (lit->literal_type == Ast_Literal::INTEGER) lit->type_info = compiler->type_int32;
+            else if (lit->literal_type == Ast_Literal::STRING)  lit->type_info = compiler->type_string;
             break;
         }
 

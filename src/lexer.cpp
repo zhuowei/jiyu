@@ -74,10 +74,12 @@ Token Lexer::lex_token() {
         Token result = make_string_token(Token::IDENTIFIER, Span(start, length), text.substring(start, length));
 
         // @Cleanup find a faster way to implement these things
-        if      (result.string == to_string("func")) result.type = Token::KEYWORD_FUNC;
-        else if (result.string == to_string("var"))  result.type = Token::KEYWORD_VAR;
-        else if (result.string == to_string("void")) result.type = Token::KEYWORD_VOID;
-        else if (result.string == to_string("int"))  result.type = Token::KEYWORD_INT;
+        if      (result.string == to_string("func"))   result.type = Token::KEYWORD_FUNC;
+        else if (result.string == to_string("var"))    result.type = Token::KEYWORD_VAR;
+        else if (result.string == to_string("void"))   result.type = Token::KEYWORD_VOID;
+        else if (result.string == to_string("int"))    result.type = Token::KEYWORD_INT;
+        else if (result.string == to_string("string")) result.type = Token::KEYWORD_STRING;
+
         return result;
     } else if (is_digit(text[current_char])) {
         auto start = current_char;
@@ -88,6 +90,39 @@ Token Lexer::lex_token() {
         auto value = atoll(value_string);
 
         return make_integer_token(value, Span(start, current_char - start));
+    } else if (text[current_char] == '\"') {
+        auto start = current_char;
+        current_char++;
+
+        while (current_char < text.length  && text[current_char] != '\"') {
+            if (text[current_char] == '\n') {
+                // create a faux token for reporting
+                Token t = make_string_token(Token::STRING, Span(start, current_char - start), text.substring(start, current_char - start));
+                compiler->report_error(&t, "Newline found while lexing string constant!");
+
+                // return the token so we dont report other errors related to lexing this string
+                return t;
+            }
+
+            current_char++;
+        }
+
+        if (current_char < text.length && text[current_char] == '\"') {
+            current_char++;
+
+            auto length = current_char - start;
+            return make_string_token(Token::STRING, Span(start, length), text.substring(start+1, length-2));
+        } else if (current_char >= text.length) {
+            // create a faux token for reporting
+                Token t = make_string_token(Token::STRING, Span(start, current_char - start), text.substring(start, current_char - start));
+                compiler->report_error(&t, "End-of-file found while lexing string constant!");
+
+                // return the token so we dont report other errors related to lexing this string
+                return t;
+        } else {
+            assert(false);
+        }
+
     } else if (text[current_char] == '-') {
         if (current_char+1 < text.length && text[current_char+1] == '>') {
             string_length_type start = current_char;

@@ -13,12 +13,14 @@ struct Token {
         END = 256,
         INTEGER,
         IDENTIFIER,
+        STRING,
 
 
         KEYWORD_FUNC,
         KEYWORD_VAR,
         KEYWORD_VOID,
         KEYWORD_INT,
+        KEYWORD_STRING,
 
         ARROW,
 

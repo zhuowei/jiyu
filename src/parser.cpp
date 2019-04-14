@@ -99,6 +99,18 @@ Ast_Expression *Parser::parse_primary_expression() {
         return lit;
     }
 
+    if (token->type == Token::STRING) {
+        next_token();
+
+        Ast_Literal *lit = new Ast_Literal();
+        lit->literal_type = Ast_Literal::STRING;
+        lit->string_value = token->string;
+
+        // @TODO mark for infer
+
+        return lit;
+    }
+
     return nullptr;
 }
 
@@ -222,6 +234,11 @@ Ast_Type_Info *Parser::parse_type_info() {
     if (token->type == Token::KEYWORD_VOID) {
         next_token();
         return compiler->type_void;
+    }
+
+    if (token->type == Token::KEYWORD_STRING) {
+        next_token();
+        return compiler->type_string;
     }
 
     return nullptr;

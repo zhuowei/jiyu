@@ -10,8 +10,10 @@ namespace llvm {
 
     class Type;
     class FunctionType;
+    class StructType;
     class Function;
 
+    class TargetMachine;
 };
 
 #include "llvm/IR/IRBuilder.h"
@@ -22,9 +24,12 @@ struct Ast_Type_Info;
 struct Ast_Declaration;
 struct Ast_Scope;
 struct Ast_Expression;
+struct Ast_Literal;
 
 struct LLVM_Generator {
     Compiler *compiler;
+
+    llvm::TargetMachine *TargetMachine;
 
     String obj_output_name;
     llvm::Module  *llvm_module;
@@ -37,6 +42,9 @@ struct LLVM_Generator {
     llvm::Type *type_i32;
     llvm::Type *type_i64;
 
+    llvm::StructType *type_string;
+    llvm::Type *type_string_length;
+
     Array<Tuple<Ast_Declaration *, llvm::Value *>> decl_value_map;
 
 
@@ -47,6 +55,7 @@ struct LLVM_Generator {
     void init();
     void finalize();
 
+    llvm::Value *create_string_literal(Ast_Literal *lit);
     llvm::Value *get_value_for_decl(Ast_Declaration *decl);
 
     llvm::Function *get_or_create_function(Ast_Function *function);

@@ -35,6 +35,9 @@ void Compiler::init() {
     type_uint16 = make_int_type(false, 2);
     type_uint32 = make_int_type(false, 4);
     type_uint64 = make_int_type(false, 8);
+
+    type_string = new Ast_Type_Info();
+    type_string->type = Ast_Type_Info::STRING;
 }
 
 Atom *Compiler::make_atom(String name) {
