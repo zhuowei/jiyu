@@ -10,6 +10,7 @@ namespace llvm {
 
     class Type;
     class FunctionType;
+    class Function;
 
 };
 
@@ -44,14 +45,16 @@ struct LLVM_Generator {
     }
 
     void init();
+    void finalize();
 
     llvm::Value *get_value_for_decl(Ast_Declaration *decl);
 
+    llvm::Function *get_or_create_function(Ast_Function *function);
     llvm::Type *get_type(Ast_Type_Info *type);
     llvm::FunctionType *create_function_type(Ast_Function *function);
     void emit_scope(Ast_Scope *scope);
     void emit_function(Ast_Function *function);
-    llvm::Value *emit_expression(Ast_Expression *expression);
+    llvm::Value *emit_expression(Ast_Expression *expression, bool is_lvalue = false);
 };
 
 

@@ -95,5 +95,9 @@ int main(int argc, char **argv) {
 
     if (compiler.errors_reported) return -1;
 
+    compiler.llvm_gen->finalize();
+
+    if (compiler.errors_reported) return -1;
+
     return 0;
 }

@@ -19,8 +19,11 @@ Ast_Expression *Sema::find_declaration_for_atom_in_scope(Ast_Scope *scope, Atom 
         if (it->type == AST_DECLARATION) {
             auto decl = static_cast<Ast_Declaration *>(it);
             if (decl->identifier->name == atom) return it;
+        } else if (it->type == AST_FUNCTION) {
+            auto function = static_cast<Ast_Function *>(it);
+            if (function->identifier->name == atom) return function;
         } else {
-            // @Incomplete
+            assert(false);
         }
     }
 
@@ -96,12 +99,38 @@ void Sema::typecheck_expression(Ast_Expression *expression) {
             typecheck_function(function);
             break;
         }
+
+        case AST_FUNCTION_CALL: {
+            auto call = static_cast<Ast_Function_Call *>(expression);
+            typecheck_expression(call->identifier);
+            if (compiler->errors_reported) return;
+
+            assert(call->identifier->resolved_declaration);
+            auto function = static_cast<Ast_Function *>(call->identifier->resolved_declaration);
+
+            if (function->type != AST_FUNCTION) {
+                String name = call->identifier->name->name;
+                compiler->report_error(nullptr, "Declaration '%.*s' is not a function.\n", name.length, name.data);
+                return;
+            }
+
+            if (call->argument_list.count != function->arguments.count) {
+                compiler->report_error(nullptr, "Mismatch in function call arguments. Wanted %lld got %lld.\n", function->arguments.count, call->argument_list.count);
+                return;
+            }
+
+            // @Incomplete check that types match between arguments
+            for (auto &it : call->argument_list) {
+                typecheck_expression(it);
+            }
+
+            break;
+        }
     }
 }
 
 void Sema::typecheck_function(Ast_Function *function) {
     // @Incomplete typecheck arguments and return declarations
 
-    assert(function->scope);
-    typecheck_scope(function->scope);
+    if (function->scope) typecheck_scope(function->scope);
 }

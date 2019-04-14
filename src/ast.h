@@ -6,6 +6,7 @@
 #include "lexer.h"
 
 struct Atom;
+struct Ast_Declaration;
 
 enum Ast_Type {
     AST_UNINITIALIZED,
@@ -15,6 +16,7 @@ enum Ast_Type {
     AST_SCOPE,
     AST_FUNCTION,
     AST_LITERAL,
+    AST_FUNCTION_CALL,
 };
 
 struct Ast {
@@ -55,13 +57,18 @@ struct Ast_Binary_Expression : Ast_Expression {
     Ast_Expression *right = nullptr;
 };
 
-struct Ast_Declaration;
-
 struct Ast_Identifier : Ast_Expression {
     Ast_Identifier() { type = AST_IDENTIFIER; }
     Atom *name = nullptr;
 
     Ast_Expression *resolved_declaration = nullptr;
+};
+
+struct Ast_Function_Call : Ast_Expression {
+    Ast_Function_Call() { type = AST_FUNCTION_CALL; }
+
+    Ast_Identifier *identifier = nullptr;
+    Array<Ast_Expression *> argument_list;
 };
 
 struct Ast_Literal : Ast_Expression {

@@ -5,20 +5,36 @@
 #include "compiler.h"
 
 #include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Host.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/TargetRegistry.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Target/TargetMachine.h"
+#include "llvm/Target/TargetOptions.h"
 
 using namespace llvm;
 
 void LLVM_Generator::init() {
+    InitializeAllTargetInfos();
+    InitializeAllTargets();
+    InitializeAllTargetMCs();
+    InitializeAllAsmParsers();
+    InitializeAllAsmPrinters();
+
     llvm_context = new LLVMContext();
     llvm_module = new Module("Htn Module", *llvm_context);
     irb = new IRBuilder<>(*llvm_context);
@@ -28,6 +44,53 @@ void LLVM_Generator::init() {
     type_i16  = Type::getInt16Ty(*llvm_context);
     type_i32  = Type::getInt32Ty(*llvm_context);
     type_i64  = Type::getInt64Ty(*llvm_context);
+}
+
+void LLVM_Generator::finalize() {
+    std::string TargetTriple = llvm::sys::getDefaultTargetTriple();
+    std::string Error;
+    auto Target = TargetRegistry::lookupTarget(TargetTriple, Error);
+
+    // Print an error and exit if we couldn't find the requested target.
+    // This generally occurs if we've forgotten to initialise the
+    // TargetRegistry or we have a bogus target triple.
+    if (!Target) {
+      errs() << Error;
+      return;
+    }
+
+    auto CPU = "generic";
+    auto Features = "";
+
+    TargetOptions opt;
+    auto RM = Optional<Reloc::Model>();
+    auto TargetMachine = Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
+
+    llvm_module->setDataLayout(TargetMachine->createDataLayout());
+    llvm_module->setTargetTriple(TargetTriple);
+
+    auto Filename = "output.o";
+    std::error_code EC;
+    raw_fd_ostream dest(Filename, EC, sys::fs::F_None);
+
+    if (EC) {
+      errs() << "Could not open file: " << EC.message();
+      return;
+    }
+
+    legacy::PassManager pass;
+    auto FileType = TargetMachine::CGFT_ObjectFile;
+
+    llvm_module->dump();
+
+    pass.add(createVerifierPass(false));
+    if (TargetMachine->addPassesToEmitFile(pass, dest, nullptr, FileType)) {
+      errs() << "TargetMachine can't emit a file of this type";
+      return;
+    }
+
+    pass.run(*llvm_module);
+    dest.flush();
 }
 
 static StringRef string_ref(String s) {
@@ -95,7 +158,7 @@ static Value *create_alloca_in_entry(IRBuilder<> *irb, Type *type) {
     return alloca;
 }
 
-Value *LLVM_Generator::emit_expression(Ast_Expression *expression) {
+Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalue) {
     switch (expression->type) {
         case AST_SCOPE: {
             auto scope = static_cast<Ast_Scope *>(expression);
@@ -107,11 +170,9 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression) {
         case AST_BINARY_EXPRESSION: {
             auto bin = static_cast<Ast_Binary_Expression *>(expression);
 
-            Value *left  = emit_expression(bin->left);
-            Value *right = emit_expression(bin->right);
-
             if (bin->operator_type == Token::EQUALS) {
-                // if we got here, left must be a pointer type
+                Value *left  = emit_expression(bin->left,  true);
+                Value *right = emit_expression(bin->right, false);
 
                 irb->CreateStore(right, left);
                 return nullptr;
@@ -136,7 +197,11 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression) {
             assert(ident->resolved_declaration->type == AST_DECLARATION);
             auto decl = static_cast<Ast_Declaration *>(ident->resolved_declaration);
 
-            return get_value_for_decl(decl);
+            auto value = get_value_for_decl(decl);
+
+            if (!is_lvalue) return irb->CreateLoad(value);
+
+            return value;
         }
 
         case AST_DECLARATION: {
@@ -147,9 +212,40 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression) {
             }
             return nullptr;
         }
+
+        case AST_FUNCTION_CALL: {
+            auto call = static_cast<Ast_Function_Call *>(expression);
+
+            Array<Value *> args;
+            for (auto &it : call->argument_list) {
+                auto value = emit_expression(it);
+                args.add(value);
+            }
+
+            auto target_function = static_cast<Ast_Function *>(call->identifier->resolved_declaration);
+            auto func = get_or_create_function(target_function);
+
+            assert(func);
+            // func->dump();
+            return irb->CreateCall(func, ArrayRef<Value *>(args.data, args.count));
+        }
     }
 
     return nullptr;
+}
+
+Function *LLVM_Generator::get_or_create_function(Ast_Function *function) {
+    assert(function->identifier);
+    String name = function->identifier->name->name;
+
+    auto func = llvm_module->getFunction(string_ref(name));
+
+    if (!func) {
+        FunctionType *function_type = create_function_type(function);
+        func = Function::Create(function_type, GlobalValue::LinkageTypes::ExternalLinkage, string_ref(name), llvm_module);
+    }
+
+    return func;
 }
 
 void LLVM_Generator::emit_scope(Ast_Scope *scope) {
@@ -159,6 +255,10 @@ void LLVM_Generator::emit_scope(Ast_Scope *scope) {
         auto decl = static_cast<Ast_Declaration *>(it);
 
         auto alloca = create_alloca_in_entry(irb, get_type(it->type_info));
+
+        if (decl->identifier) {
+            alloca->setName(string_ref(decl->identifier->name->name));
+        }
 
         assert(get_value_for_decl(decl) == nullptr);
         decl_value_map.add(MakeTuple(decl, alloca));
@@ -172,8 +272,8 @@ void LLVM_Generator::emit_scope(Ast_Scope *scope) {
 void LLVM_Generator::emit_function(Ast_Function *function) {
     assert(function->identifier && function->identifier->name);
 
-    FunctionType *function_type = create_function_type(function);
-    Function *func = Function::Create(function_type, GlobalValue::LinkageTypes::ExternalLinkage, string_ref(function->identifier->name->name), llvm_module);
+    Function *func = get_or_create_function(function);
+    if (!function->scope) return; // forward declaration of external thing
 
     // create entry block
     BasicBlock *entry = BasicBlock::Create(*llvm_context, "entry", func);
@@ -184,8 +284,9 @@ void LLVM_Generator::emit_function(Ast_Function *function) {
 
     irb->SetInsertPoint(starting_block);
     emit_scope(function->scope);
+    irb->CreateRetVoid();
 
-    func->dump();
+    // func->dump();
     decl_value_map.clear();
 }
 

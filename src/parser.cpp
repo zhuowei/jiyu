@@ -49,8 +49,43 @@ Ast_Identifier *Parser::parse_identifier() {
 Ast_Expression *Parser::parse_primary_expression() {
     Token *token = peek_token();
 
-    if (token->type == Token::IDENTIFIER)
-        return parse_identifier();
+    if (token->type == Token::IDENTIFIER) {
+        auto ident = parse_identifier();
+
+        token = peek_token();
+        if (token->type == '(') {
+            next_token();
+
+            // transform this into a function call
+            Ast_Function_Call *call = new Ast_Function_Call();
+            call->identifier = ident;
+
+            bool found_argument = false;
+            token = peek_token();
+            while (token->type != Token::END) {
+
+                if (call->argument_list.count > 0 && token->type == ',') {
+                    next_token();
+                } else if (token->type == ')') break;
+
+                auto expr = parse_expression();
+                if (!expr) {
+                    // @FixME report_error
+                    compiler->report_error(nullptr, "Malformed expression found while parsing parameter list.\n");
+                    return nullptr;
+                }
+                call->argument_list.add(expr);
+
+                token = peek_token(); 
+            }
+
+            if (!expect_and_eat((Token::Type) ')')) return nullptr;
+
+            return call;
+        } else {
+            return ident;
+        }
+    }
 
     if (token->type == Token::INTEGER) {
         next_token();
@@ -219,39 +254,41 @@ Ast_Function *Parser::parse_function() {
 
     if (!expect_and_eat((Token::Type) ')')) return nullptr;
 
-    if (!expect_and_eat(Token::ARROW)) return nullptr;
+    if (peek_token()->type == Token::ARROW) {
+        if (!expect_and_eat(Token::ARROW)) return nullptr;
 
-    bool found_return_type = false;
-    token = peek_token();
-    while (token->type != Token::END) {
+        bool found_return_type = false;
+        token = peek_token();
+        while (token->type != Token::END) {
 
-        if (token->type == '{' || token->type == Token::SEMICOLON) break;
+            if (token->type == '{' || token->type == Token::SEMICOLON) break;
 
-        Ast_Identifier *ident = nullptr;
-        if (token->type == Token::IDENTIFIER) {
-            ident = parse_identifier();
-            assert(ident);
+            Ast_Identifier *ident = nullptr;
+            if (token->type == Token::IDENTIFIER) {
+                ident = parse_identifier();
+                assert(ident);
 
-            if (!expect_and_eat(Token::COLON)) return nullptr;
+                if (!expect_and_eat(Token::COLON)) return nullptr;
+            }
+
+            Ast_Type_Info *type_info = parse_type_info();
+            if (!type_info) return nullptr;
+
+            Ast_Declaration *decl = new Ast_Declaration();
+            decl->identifier = ident;
+            decl->type_info = type_info;
+
+            function->returns.add(decl);
+
+            found_return_type = true;
+
+            token = peek_token();
         }
 
-        Ast_Type_Info *type_info = parse_type_info();
-        if (!type_info) return nullptr;
-
-        Ast_Declaration *decl = new Ast_Declaration();
-        decl->identifier = ident;
-        decl->type_info = type_info;
-
-        function->returns.add(decl);
-
-        found_return_type = true;
-
-        token = peek_token();
-    }
-
-    if (!found_return_type) {
-        compiler->report_error(token, "No return type found after arrow!\n");
-        return nullptr;
+        if (!found_return_type) {
+            compiler->report_error(token, "No return type found after arrow!\n");
+            return nullptr;
+        }
     }
 
 
@@ -260,6 +297,8 @@ Ast_Function *Parser::parse_function() {
         parse_scope(scope, true);
 
         function->scope = scope;
+    } else {
+        if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
     }
 
     function->identifier = ident;

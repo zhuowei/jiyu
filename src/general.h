@@ -183,6 +183,10 @@ struct Array {
         reserve(reserve_amount);
     }
 
+    ~Array() {
+        reset();
+    }
+
     void reserve(array_count_type amount) {
         if (amount <= 0) amount = NEW_MEM_CHUNK_ELEMENT_COUNT;
         if (amount <= allocated) return;

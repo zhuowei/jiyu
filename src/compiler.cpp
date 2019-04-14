@@ -84,5 +84,5 @@ void Compiler::report_error(Token *tok, char *fmt, ...) {
     report_error_valist(filename, source, span, fmt, args);
     va_end(args);
 
-    __builtin_debugtrap();
+    // __builtin_debugtrap();
 }
