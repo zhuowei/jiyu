@@ -6,6 +6,14 @@
 
 #include <stdio.h> // for vprintf
 
+Ast_Type_Info *make_pointer_type(Ast_Type_Info *pointee) {
+    Ast_Type_Info *info = new Ast_Type_Info();
+    info->type = Ast_Type_Info::POINTER;
+    info->pointer_to = pointee;
+    info->size = 8; // @TargetInfo
+    return info;
+}
+
 static Ast_Type_Info *make_int_type(bool is_signed, s64 size) {
     Ast_Type_Info *info = new Ast_Type_Info();
     info->type = Ast_Type_Info::INTEGER;
@@ -38,6 +46,10 @@ void Compiler::init() {
 
     type_string = new Ast_Type_Info();
     type_string->type = Ast_Type_Info::STRING;
+
+    type_string_data = make_pointer_type(type_uint8);
+    // @FixMe
+    type_string_length = type_int64; // @TargetInfo
 }
 
 Atom *Compiler::make_atom(String name) {

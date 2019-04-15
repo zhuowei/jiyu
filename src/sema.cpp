@@ -79,7 +79,8 @@ void Sema::typecheck_expression(Ast_Expression *expression) {
                     // @FixMe report_error
                     // @TODO report the types here
                     // @TODO attempt to implciit cast if available
-                    compiler->report_error(nullptr, "Attempt to initialize variable with expression of incompatible type.");
+                    compiler->report_error(nullptr, "Attempt to initialize variable with expression of incompatible type.\n");
+                    return;
                 }
             }
 
@@ -94,16 +95,18 @@ void Sema::typecheck_expression(Ast_Expression *expression) {
             assert(bin->left->type_info);
             assert(bin->right->type_info);
 
+            // @Hack @Incomplete
+            bin->type_info = bin->left->type_info;
+
             if (bin->left->type_info != bin->right->type_info) {
                 // @FixMe report_error
                 // @TODO report types
                 // @TODO attempt to implicit cast
                 // @TOOD report operator
                 compiler->report_error(nullptr, "Incompatible types found on lhs and rhs of binary operator.");
+                return;
             }
 
-            // @Hack @Incomplete
-            bin->type_info = bin->left->type_info;
             break;
         }
 
@@ -146,6 +149,42 @@ void Sema::typecheck_expression(Ast_Expression *expression) {
                 typecheck_expression(it);
             }
 
+            break;
+        }
+
+        case AST_DEREFERENCE: {
+            auto deref = static_cast<Ast_Dereference *>(expression);
+            typecheck_expression(deref->left);
+
+            
+            assert(deref->left->type_info);
+
+            // @Incomplete structs
+            auto left_type = deref->left->type_info;
+            if (left_type->type != Ast_Type_Info::STRING) {
+                // @Incomplete report_error
+                compiler->report_error(nullptr, "Attempt to dereference a type that is not a string or struct!\n");
+                return;
+            }
+
+            // @Hack until we have field members in the type_info (data and length would be field members of string)
+            assert(deref->field_selector && deref->field_selector->name);
+            String field_name = deref->field_selector->name->name;
+
+            if (field_name == to_string("data")) {
+                deref->element_path_index = 0;
+                deref->byte_offset = 0;
+
+                // @Hack @Incomplete
+                deref->type_info = compiler->type_string_data;
+            } else if (field_name == to_string("length")) {
+                deref->element_path_index = 1;
+                // @Hack @Cleanup
+                // @Hack @Cleanup
+                // @Hack @Cleanup
+                deref->byte_offset = 8; // @TargetInfo
+                deref->type_info = compiler->type_string_length;
+            }
             break;
         }
     }

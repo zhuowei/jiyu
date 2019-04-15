@@ -134,6 +134,11 @@ Type *LLVM_Generator::get_type(Ast_Type_Info *type) {
         return type_string;
     }
 
+    if (type->type == Ast_Type_Info::POINTER) {
+        auto pointee = get_type(type->pointer_to);
+        return pointee->getPointerTo();
+    }
+
     assert(false);
     return nullptr;
 }
@@ -262,6 +267,19 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             // func->dump();
             return irb->CreateCall(func, ArrayRef<Value *>(args.data, args.count));
         }
+
+        case AST_DEREFERENCE: {
+            auto deref = static_cast<Ast_Dereference *>(expression);
+
+            auto lhs = emit_expression(deref->left, true);
+
+            assert(deref->element_path_index >= 0);
+            assert(deref->byte_offset >= 0);
+
+            auto valueptr = irb->CreateGEP(lhs, { ConstantInt::get(type_i32, 0), ConstantInt::get(type_i32, deref->element_path_index) });
+            if (!is_lvalue) return irb->CreateLoad(valueptr);
+			return valueptr;
+		}
     }
 
     return nullptr;

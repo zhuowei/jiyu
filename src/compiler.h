@@ -73,6 +73,8 @@ struct Compiler {
     Ast_Type_Info *type_uint64;
 
     Ast_Type_Info *type_string;
+    Ast_Type_Info *type_string_data;
+    Ast_Type_Info *type_string_length;
     
 
     Compiler() {
@@ -89,5 +91,7 @@ struct Compiler {
     void report_error_valist(String filename, String source, Span error_location, char *fmt, va_list args);
     void report_error(Token *tok, char *fmt, ...);
 };
+
+Ast_Type_Info *make_pointer_type(Ast_Type_Info *pointee);
 
 #endif

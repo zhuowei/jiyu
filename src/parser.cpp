@@ -51,40 +51,7 @@ Ast_Expression *Parser::parse_primary_expression() {
 
     if (token->type == Token::IDENTIFIER) {
         auto ident = parse_identifier();
-
-        token = peek_token();
-        if (token->type == '(') {
-            next_token();
-
-            // transform this into a function call
-            Ast_Function_Call *call = new Ast_Function_Call();
-            call->identifier = ident;
-
-            bool found_argument = false;
-            token = peek_token();
-            while (token->type != Token::END) {
-
-                if (call->argument_list.count > 0 && token->type == ',') {
-                    next_token();
-                } else if (token->type == ')') break;
-
-                auto expr = parse_expression();
-                if (!expr) {
-                    // @FixME report_error
-                    compiler->report_error(nullptr, "Malformed expression found while parsing parameter list.\n");
-                    return nullptr;
-                }
-                call->argument_list.add(expr);
-
-                token = peek_token(); 
-            }
-
-            if (!expect_and_eat((Token::Type) ')')) return nullptr;
-
-            return call;
-        } else {
-            return ident;
-        }
+        return ident;
     }
 
     if (token->type == Token::INTEGER) {
@@ -115,7 +82,69 @@ Ast_Expression *Parser::parse_primary_expression() {
 }
 
 Ast_Expression *Parser::parse_postfix_expression() {
-    return parse_primary_expression();
+    Ast_Expression *sub_expression = parse_primary_expression();
+    if (!sub_expression) return nullptr;
+
+    Token *token = peek_token();
+    while (token->type != Token::END) {
+
+        if (token->type == Token::LEFT_PAREN) {
+            next_token();
+
+            // transform this into a function call
+            Ast_Function_Call *call = new Ast_Function_Call();
+
+            assert(sub_expression->type == AST_IDENTIFIER);
+            // @HACK @HACK @HACK
+            // @HACK @HACK @HACK
+            // @HACK @HACK @HACK
+            // @HACK @HACK @HACK
+            call->identifier = reinterpret_cast<Ast_Identifier *>(sub_expression);
+
+            bool found_argument = false;
+            token = peek_token();
+            while (token->type != Token::END) {
+
+                if (call->argument_list.count > 0 && token->type == ',') {
+                    next_token();
+                } else if (token->type == ')') break;
+
+                auto expr = parse_expression();
+                if (!expr) {
+                    // @FixME report_error
+                    compiler->report_error(nullptr, "Malformed expression found while parsing parameter list.\n");
+                    return nullptr;
+                }
+                call->argument_list.add(expr);
+
+                token = peek_token(); 
+            }
+
+            if (!expect_and_eat((Token::Type) ')')) return nullptr;
+
+            sub_expression = call;
+        } else if (token->type == Token::DOT) {
+            next_token();
+
+            Ast_Dereference *deref = new Ast_Dereference();
+
+            // @TODO do other languages let you use anything other than an identifier for a field selection?
+            auto right = parse_identifier();
+            if (!right) return nullptr;
+
+            deref->left = sub_expression;
+            deref->field_selector = right;
+
+            sub_expression = deref;
+        } else {
+            break;
+        }
+
+
+        token = peek_token();
+    }
+
+    return sub_expression;
 }
 
 Ast_Expression *Parser::parse_expression() {
@@ -231,6 +260,11 @@ Ast_Type_Info *Parser::parse_type_info() {
         return compiler->type_int32; // @IntegerSize ??
     }
 
+    if (token->type == Token::KEYWORD_UINT8) {
+        next_token();
+        return compiler->type_uint8;
+    }
+
     if (token->type == Token::KEYWORD_VOID) {
         next_token();
         return compiler->type_void;
@@ -239,6 +273,15 @@ Ast_Type_Info *Parser::parse_type_info() {
     if (token->type == Token::KEYWORD_STRING) {
         next_token();
         return compiler->type_string;
+    }
+
+    if (token->type == Token::STAR) {
+        next_token();
+        auto pointee = parse_type_info();
+        if (!pointee) return nullptr;
+        // @Incomplete report_error here?
+
+        return make_pointer_type(pointee);
     }
 
     return nullptr;

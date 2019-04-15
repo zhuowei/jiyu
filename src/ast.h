@@ -17,6 +17,7 @@ enum Ast_Type {
     AST_FUNCTION,
     AST_LITERAL,
     AST_FUNCTION_CALL,
+    AST_DEREFERENCE,
 };
 
 struct Ast {
@@ -30,6 +31,8 @@ struct Ast_Type_Info {
         UNINITIALIZED = 0,
         VOID,
         INTEGER,
+        POINTER,
+
         FLOAT,
         STRING,
         STRUCT,
@@ -40,13 +43,15 @@ struct Ast_Type_Info {
 
     bool is_signed = false; // for INTEGER
 
+    Ast_Type_Info *pointer_to = nullptr;
+
     // Ast_Function *function;
 
     s64 size = -1;
 };
 
 struct Ast_Expression : Ast {
-    Ast_Type_Info *type_info;
+    Ast_Type_Info *type_info = nullptr;
 };
 
 struct Ast_Binary_Expression : Ast_Expression {
@@ -64,9 +69,20 @@ struct Ast_Identifier : Ast_Expression {
     Ast_Expression *resolved_declaration = nullptr;
 };
 
+struct Ast_Dereference : Ast_Expression {
+    Ast_Dereference() { type = AST_DEREFERENCE; }
+
+    Ast_Expression *left;
+    Ast_Identifier *field_selector;
+
+    s64 element_path_index = -1; // 0-based element into the list of declarations or fields within the outer type
+    s64 byte_offset = -1; // byte-offset from the start of the the memory occupied by the outer type
+};
+
 struct Ast_Function_Call : Ast_Expression {
     Ast_Function_Call() { type = AST_FUNCTION_CALL; }
 
+    // @Incomplete this should be an expression instead of an identifier.
     Ast_Identifier *identifier = nullptr;
     Array<Ast_Expression *> argument_list;
 };

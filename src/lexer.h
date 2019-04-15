@@ -6,9 +6,13 @@
 
 struct Token {
     enum Type {
-        EQUALS = '=',
-        SEMICOLON = ';',
-        COLON = ':',
+        DOT         = '.',
+        EQUALS      = '=',
+        SEMICOLON   = ';',
+        COLON       = ':',
+        LEFT_PAREN  = '(',
+        RIGHT_PAREN = ')',
+        STAR        = '*',
 
         END = 256,
         INTEGER,
@@ -19,8 +23,9 @@ struct Token {
         KEYWORD_FUNC,
         KEYWORD_VAR,
         KEYWORD_VOID,
-        KEYWORD_INT,
         KEYWORD_STRING,
+        KEYWORD_INT,
+        KEYWORD_UINT8,
 
         ARROW,
 

@@ -66,6 +66,7 @@ int main(int argc, char **argv) {
 
     printf("File contents: %.*s\n", source.length, source.data);
 
+    /*
     printf("Tokens:\n");
 
     printf("TOKEN COUNT: %d\n", lexer->tokens.count);
@@ -73,6 +74,7 @@ int main(int argc, char **argv) {
         String text = t.text_span.get_text();
         printf("'%.*s'\n", text.length, text.data);
     }
+    */
 
     compiler.parser->parse_scope(compiler.global_scope, false);
 
