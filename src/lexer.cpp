@@ -103,6 +103,11 @@ Token Lexer::lex_token() {
 
                 // return the token so we dont report other errors related to lexing this string
                 return t;
+            } else if (text[current_char] == '\\') {
+                // @Cleanup do we really have to do this??
+                if (current_char + 1 < text.length) {
+                    current_char ++; // pass these so that we can translate them later in the final string
+                }
             }
 
             current_char++;
@@ -112,7 +117,29 @@ Token Lexer::lex_token() {
             current_char++;
 
             auto length = current_char - start;
-            return make_string_token(Token::STRING, Span(start, length), text.substring(start+1, length-2));
+
+            String input = text.substring(start+1, length-2);
+            String output_string = copy_string(input);
+            output_string.length = 0;
+
+            for (string_length_type i = 0; i < input.length; ++i) {
+                if (input[i] == '\\') {
+                    if (i + 1 < input.length) {
+                        if (input[i + 1] == 'n') {
+                            output_string.length++;
+                            output_string.data[output_string.length-1] = '\n';
+
+                            ++i;
+                            continue;
+                        }
+                    }
+                }
+
+                output_string.length++;
+                output_string.data[output_string.length-1] = input[i];
+            }
+
+            return make_string_token(Token::STRING, Span(start, length), output_string);
         } else if (current_char >= text.length) {
             // create a faux token for reporting
                 Token t = make_string_token(Token::STRING, Span(start, current_char - start), text.substring(start, current_char - start));

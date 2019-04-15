@@ -5,7 +5,7 @@ func exit(value: int);
 func write(fd: int, buf: *uint8, count: int);
 
 func main (arg: int, arg2: int) -> void {
-    var my_string: string = "Hello world!";
+    var my_string: string = "Hello world!\n";
 
     var my_var: int = 10;
 
@@ -15,7 +15,7 @@ func main (arg: int, arg2: int) -> void {
     my_var = my_var2;
    //  var my_var3;
 
-   write(1, my_string.data, 12);
+   write(1, my_string.data, 13);
    exit(11);
 }
 
