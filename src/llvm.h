@@ -57,6 +57,7 @@ struct LLVM_Generator {
 
     llvm::Value *create_string_literal(Ast_Literal *lit);
     llvm::Value *get_value_for_decl(Ast_Declaration *decl);
+    llvm::Value *dereference(llvm::Value *value, s64 element_path_index, bool is_lvalue = false);
 
     llvm::Function *get_or_create_function(Ast_Function *function);
     llvm::Type *get_type(Ast_Type_Info *type);

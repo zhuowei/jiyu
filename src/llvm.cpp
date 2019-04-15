@@ -195,6 +195,17 @@ Value *LLVM_Generator::create_string_literal(Ast_Literal *lit) {
     return ConstantStruct::get(type_string, { data, length });
 }
 
+Value *LLVM_Generator::dereference(Value *value, s64 element_path_index, bool is_lvalue) {
+    // @TODO I think ideally, the front-end would change and dereferences of constant values with replaecments of literals of the value so that we can simplify LLVM code generation
+    if (auto constant = dyn_cast<Constant>(value)) {
+        return irb->CreateExtractValue(constant, element_path_index);
+    } else {
+        auto valueptr = irb->CreateGEP(value, { ConstantInt::get(type_i32, 0), ConstantInt::get(type_i32, element_path_index) });
+        if (!is_lvalue) return irb->CreateLoad(valueptr);
+        return valueptr;
+    }
+}
+
 Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalue) {
     switch (expression->type) {
         case AST_SCOPE: {
@@ -276,9 +287,8 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             assert(deref->element_path_index >= 0);
             assert(deref->byte_offset >= 0);
 
-            auto valueptr = irb->CreateGEP(lhs, { ConstantInt::get(type_i32, 0), ConstantInt::get(type_i32, deref->element_path_index) });
-            if (!is_lvalue) return irb->CreateLoad(valueptr);
-			return valueptr;
+            auto value = dereference(lhs, deref->element_path_index, is_lvalue);
+            return value;
 		}
     }
 
