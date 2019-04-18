@@ -94,11 +94,11 @@ Ast_Expression *Parser::parse_postfix_expression() {
             // transform this into a function call
             Ast_Function_Call *call = new Ast_Function_Call();
 
+            // @HACK @HACK @HACK
+            // @HACK @HACK @HACK
+            // @HACK @HACK @HACK
+            // @HACK @HACK @HACK
             assert(sub_expression->type == AST_IDENTIFIER);
-            // @HACK @HACK @HACK
-            // @HACK @HACK @HACK
-            // @HACK @HACK @HACK
-            // @HACK @HACK @HACK
             call->identifier = reinterpret_cast<Ast_Identifier *>(sub_expression);
 
             bool found_argument = false;
@@ -147,8 +147,76 @@ Ast_Expression *Parser::parse_postfix_expression() {
     return sub_expression;
 }
 
+Ast_Expression *Parser::parse_multiplicative_expression() {
+    // @Cleanup this should be parse_unary_expression
+    auto sub_expression = parse_postfix_expression();
+
+    Token *token = peek_token();
+    while (token->type != Token::END) {
+
+        if (token->type == Token::STAR
+            || token->type == Token::SLASH
+            || token->type == Token::PERCENT) {
+            next_token();
+
+            Ast_Binary_Expression *bin = new Ast_Binary_Expression();
+            bin->operator_type = token->type;
+            bin->left = sub_expression;
+
+            // @Cleanup this should be parse_unary_expression
+            auto right = parse_postfix_expression();
+            if (!right) {
+                compiler->report_error(token, "Malformed expression following '%c' operator.\n", token->type);
+                return nullptr;
+            }
+            bin->right = right;
+
+            sub_expression = bin;
+        } else {
+            break;
+        }
+
+        token = peek_token();
+    }
+
+    return sub_expression;
+}
+
+Ast_Expression *Parser::parse_additive_expression() {
+    auto sub_expression = parse_multiplicative_expression();
+
+    Token *token = peek_token();
+    while (token->type != Token::END) {
+
+        if (token->type == Token::PLUS
+            || token->type == Token::MINUS) {
+            next_token();
+
+            Ast_Binary_Expression *bin = new Ast_Binary_Expression();
+            bin->operator_type = token->type;
+            bin->left = sub_expression;
+
+            // @Cleanup this should be parse_unary_expression
+            auto right = parse_multiplicative_expression();
+            if (!right) {
+                compiler->report_error(token, "Malformed expression following '%c' operator.\n", token->type);
+                return nullptr;
+            }
+            bin->right = right;
+
+            sub_expression = bin;
+        } else {
+            break;
+        }
+
+        token = peek_token();
+    }
+
+    return sub_expression;
+}
+
 Ast_Expression *Parser::parse_expression() {
-    return parse_postfix_expression();
+    return parse_additive_expression();
 }
 
 Ast_Expression *Parser::parse_statement() {

@@ -236,8 +236,34 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 irb->CreateStore(right, left);
                 return nullptr;
             } else {
-                assert(false);
+                Value *left  = emit_expression(bin->left,  false);
+                Value *right = emit_expression(bin->right, false);
+
+                assert(types_match(bin->left->type_info, bin->right->type_info));
+                // @TODO NUW NSW?
+                switch (bin->operator_type) {
+                    case Token::STAR:    return irb->CreateMul(left, right);
+                    case Token::PERCENT: assert(false); // @Incomplete
+                    case Token::SLASH: {
+                        auto info = bin->left->type_info;
+                        if (info->type == Ast_Type_Info::INTEGER) {
+                            if (info->is_signed) {
+                                return irb->CreateSDiv(left, right);
+                            } else {
+                                return irb->CreateUDiv(left, right);
+                            }
+                        } else {
+                            assert(info->type == Ast_Type_Info::FLOAT);
+                            return irb->CreateFDiv(left, right);
+                        }
+                    }
+                    case Token::PLUS:  return irb->CreateAdd(left, right);
+                    case Token::MINUS: return irb->CreateSub(left, right); 
+                    default: assert(false);
+                }
             }
+
+            assert(false);
         }
 
         case AST_LITERAL: {
@@ -246,6 +272,7 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             switch (lit->literal_type) {
                 case Ast_Literal::INTEGER: return ConstantInt::get(get_type(lit->type_info), lit->integer_value);
                 case Ast_Literal::STRING:  return create_string_literal(lit);
+                case Ast_Literal::FLOAT:   return ConstantFP::get(get_type(lit->type_info),  lit->float_value);
                 default: return nullptr;
             }
         }
@@ -301,6 +328,37 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             auto value = dereference(lhs, deref->element_path_index, is_lvalue);
             return value;
 		}
+
+        case AST_CAST: {
+            auto cast = static_cast<Ast_Cast *>(expression);
+            Value *value = emit_expression(cast->expression);
+
+            auto src = cast->expression->type_info;
+            auto dst = cast->type_info;
+
+            auto src_type = get_type(src);
+            auto dst_type = get_type(dst);
+            if (is_int_type(src) && is_int_type(dst)) {
+                if (src->size > dst->size) {
+                    return irb->CreateTrunc(value, dst_type);
+                } else if (src->size < dst->size) {
+                    if (src->is_signed && dst->is_signed) {
+                        return irb->CreateSExt(value, dst_type);
+                    } else {
+                        return irb->CreateZExt(value, dst_type);
+                    }
+                }
+            } else if (is_float_type(src) && is_float_type(dst)) {
+                if (src->size < dst->size) {
+                    return irb->CreateFPExt(value, dst_type);
+                } else if (src->size > dst->size) {
+                    return irb->CreateFPTrunc(value, dst_type);
+                }
+            }
+
+            assert(false);
+            break;
+        }
     }
 
     return nullptr;

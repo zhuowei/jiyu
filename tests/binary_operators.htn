@@ -1,0 +1,37 @@
+
+
+func int_func(val: int8) -> void {
+
+}
+
+func float_func(val: double) -> void {
+
+}
+
+func promotion() -> void {
+    var i: int32 = 1;
+    var j: int8  = 2;
+    var k: int64 = 10;
+
+    i * j;
+
+    i * k;
+
+    int_func(j);
+
+    var f32: float = 1;
+    var f64: double;
+
+    f64 = f32;
+
+    float_func(f32);
+}
+
+func main() -> void {
+    var i = 1;
+    var j = 2;
+    // var k: uint = 1;
+
+    // i = i * j + ;
+    // i = i / j;
+}

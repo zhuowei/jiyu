@@ -13,6 +13,10 @@ struct Token {
         LEFT_PAREN  = '(',
         RIGHT_PAREN = ')',
         STAR        = '*',
+        SLASH       = '/',
+        PERCENT     = '%',
+        PLUS        = '+',
+        MINUS       = '-',
 
         END = 256,
         INTEGER,

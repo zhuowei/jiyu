@@ -78,8 +78,10 @@ Token Lexer::lex_token() {
         else if (result.string == to_string("var"))    result.type = Token::KEYWORD_VAR;
         else if (result.string == to_string("void"))   result.type = Token::KEYWORD_VOID;
         else if (result.string == to_string("string")) result.type = Token::KEYWORD_STRING;
+        
         else if (result.string == to_string("int"))    result.type = Token::KEYWORD_INT;
         else if (result.string == to_string("uint"))   result.type = Token::KEYWORD_UINT;
+
         else if (result.string == to_string("uint8"))  result.type = Token::KEYWORD_UINT8;
         else if (result.string == to_string("uint16")) result.type = Token::KEYWORD_UINT16;
         else if (result.string == to_string("uint32")) result.type = Token::KEYWORD_UINT32;

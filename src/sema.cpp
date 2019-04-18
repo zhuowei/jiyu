@@ -3,6 +3,66 @@
 #include "ast.h"
 #include "compiler.h"
 
+Ast_Expression *cast_int_to_int(Ast_Expression *expr, Ast_Type_Info *target) {
+    assert(expr->type_info->type == Ast_Type_Info::INTEGER);
+    assert(target->type == Ast_Type_Info::INTEGER);
+
+    if (target->size == expr->type_info->size) return expr;
+
+    Ast_Cast *cast = new Ast_Cast();
+    cast->expression = expr;
+    cast->type_info = target;
+    return cast;
+}
+
+Ast_Expression *cast_float_to_float(Ast_Expression *expr, Ast_Type_Info *target) {
+    assert(expr->type_info->type == Ast_Type_Info::FLOAT);
+    assert(target->type == Ast_Type_Info::FLOAT);
+
+    if (target->size == expr->type_info->size) return expr;
+
+    Ast_Cast *cast = new Ast_Cast();
+    cast->expression = expr;
+    cast->type_info = target;
+    return cast;
+}
+
+// @Cleanup if we introduce expression substitution, then we can remove the resut parameters and just set (left/right)->substitution
+// actually, if we do that, then we can't really use this for checking function calls.
+void Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast_Expression *right, Ast_Expression **result_left, Ast_Expression **result_right) {
+     if (left->type == AST_LITERAL) {
+        typecheck_expression(right);
+        typecheck_expression(left, right->type_info);
+    } else {
+        typecheck_expression(left);
+        typecheck_expression(right, left->type_info);
+    }
+    
+    assert(left->type_info);
+    assert(right->type_info);
+
+    auto ltype = left->type_info;
+    auto rtype = right->type_info;
+    if (!types_match(ltype, rtype)) {
+        if (is_int_type(ltype) && is_int_type(rtype) && (ltype->is_signed == rtype->is_signed)) {
+            if (ltype->size < rtype->size) {
+                left = cast_int_to_int(left, rtype);
+            } else if (ltype->size > rtype->size) {
+                right = cast_int_to_int(right, ltype);
+            }
+        } else if (is_float_type(ltype) && is_float_type(rtype)) {
+            if (ltype->size < rtype->size) {
+                left = cast_float_to_float(left, rtype);
+            } else if (ltype->size > rtype->size) {
+                right = cast_float_to_float(right, ltype);
+            }
+        }
+    }
+
+    if (result_left)  *result_left  = left;
+    if (result_right) *result_right = right;
+}
+
 void Sema::typecheck_scope(Ast_Scope *scope) {
     scope_stack.add(scope);
 
@@ -42,7 +102,7 @@ Ast_Expression *Sema::find_declaration_for_atom(Atom *atom) {
 }
 
 
-void Sema::typecheck_expression(Ast_Expression *expression) {
+void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_numeric_type) {
     switch (expression->type) {
         case AST_IDENTIFIER: {
             auto ident = static_cast<Ast_Identifier *>(expression);
@@ -66,7 +126,7 @@ void Sema::typecheck_expression(Ast_Expression *expression) {
             auto decl = static_cast<Ast_Declaration *>(expression);
 
             // @TODO prevent use of a declaration in it's initializer
-            if (decl->initializer_expression) typecheck_expression(decl->initializer_expression);
+            if (decl->initializer_expression) typecheck_expression(decl->initializer_expression, decl->type_info);
 
             if (!decl->type_info) {
                 assert(decl->initializer_expression);
@@ -75,7 +135,7 @@ void Sema::typecheck_expression(Ast_Expression *expression) {
             }
 
             if (decl->type_info && decl->initializer_expression) {
-                if (decl->type_info != decl->initializer_expression->type_info) {
+                if (!types_match(decl->type_info, decl->initializer_expression->type_info)) {
                     // @FixMe report_error
                     // @TODO report the types here
                     // @TODO attempt to implciit cast if available
@@ -89,16 +149,13 @@ void Sema::typecheck_expression(Ast_Expression *expression) {
 
         case AST_BINARY_EXPRESSION: {
             auto bin = static_cast<Ast_Binary_Expression *>(expression);
-            typecheck_expression(bin->left);
-            typecheck_expression(bin->right);
-
-            assert(bin->left->type_info);
-            assert(bin->right->type_info);
+            
+           typecheck_and_implicit_cast_expression_pair(bin->left, bin->right, &bin->left, &bin->right);
 
             // @Hack @Incomplete
             bin->type_info = bin->left->type_info;
 
-            if (bin->left->type_info != bin->right->type_info) {
+            if (!types_match(bin->left->type_info, bin->right->type_info)) {
                 // @FixMe report_error
                 // @TODO report types
                 // @TODO attempt to implicit cast
@@ -114,8 +171,28 @@ void Sema::typecheck_expression(Ast_Expression *expression) {
             auto lit = static_cast<Ast_Literal *>(expression);
 
             // @Incomplete
-            if      (lit->literal_type == Ast_Literal::INTEGER) lit->type_info = compiler->type_int32;
-            else if (lit->literal_type == Ast_Literal::STRING)  lit->type_info = compiler->type_string;
+
+            // @Incomplete if we have a float literal but want an int type, keep a float type and let the implicit cast system do its job
+            if (lit->literal_type == Ast_Literal::INTEGER) {
+                if (want_numeric_type && (want_numeric_type->type == Ast_Type_Info::INTEGER || want_numeric_type->type == Ast_Type_Info::FLOAT)) {
+                    // @Incomplete check that number can fit in target type
+                    // @Incomplete cast to float if we have an int literal
+                    lit->type_info = want_numeric_type;
+
+
+                    // @Cleanup I'm mutating the literal for now, but this would be a good place to use substitution, I think
+                    // Or since literal ints are considered completely typeless up until this point, maybe this is the right thing to do
+                    if (want_numeric_type->type == Ast_Type_Info::FLOAT) {
+                        lit->literal_type = Ast_Literal::FLOAT;
+                        // @Cleanup the u64 cast
+                        lit->float_value = static_cast<double>((u64)lit->integer_value);
+                    }
+                } else {
+                    lit->type_info = compiler->type_int32;
+                }
+            }
+            
+            if (lit->literal_type == Ast_Literal::STRING)  lit->type_info = compiler->type_string;
             break;
         }
 
@@ -140,13 +217,27 @@ void Sema::typecheck_expression(Ast_Expression *expression) {
             }
 
             if (call->argument_list.count != function->arguments.count) {
-                compiler->report_error(nullptr, "Mismatch in function call arguments. Wanted %lld got %lld.\n", function->arguments.count, call->argument_list.count);
+                compiler->report_error(nullptr, "Mismatch in function call arguments. Wanted %lld, got %lld.\n", function->arguments.count, call->argument_list.count);
                 return;
             }
 
+            typecheck_function(function);
+
             // @Incomplete check that types match between arguments
-            for (auto &it : call->argument_list) {
-                typecheck_expression(it);
+            for (array_count_type i = 0; i < call->argument_list.count; ++i) {
+                auto value = call->argument_list[i];
+                auto param = function->arguments[i];
+
+                // use null for morphed param because 
+                typecheck_and_implicit_cast_expression_pair(param, value, nullptr, &value);
+
+                if (!types_match(value->type_info, param->type_info)) {
+                    compiler->report_error(nullptr, "Mismatch in function call argument types.\n");
+                    return;
+                }
+
+                // set value into the list in case it got implicitly cast
+                call->argument_list[i] = value;
             }
 
             break;
@@ -187,11 +278,24 @@ void Sema::typecheck_expression(Ast_Expression *expression) {
             }
             break;
         }
+
+        case AST_CAST: {
+            assert(false); // @Incomplete
+            break;
+        }
     }
 }
 
 void Sema::typecheck_function(Ast_Function *function) {
-    // @Incomplete typecheck arguments and return declarations
+    // @Incomplete set type info so we don't come through here multiple times
+
+    for (auto &a : function->arguments) {
+        typecheck_expression(a);
+    }
+
+    for (auto &r : function->returns) {
+        typecheck_expression(r);
+    }
 
     if (function->scope) typecheck_scope(function->scope);
 }

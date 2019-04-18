@@ -18,6 +18,7 @@ enum Ast_Type {
     AST_LITERAL,
     AST_FUNCTION_CALL,
     AST_DEREFERENCE,
+    AST_CAST,
 };
 
 struct Ast {
@@ -125,6 +126,11 @@ struct Ast_Function : Ast_Expression {
     Array<Ast_Declaration *> returns;
 
     Ast_Scope *scope = nullptr;
+};
+
+struct Ast_Cast : Ast_Expression {
+    Ast_Cast() { type = AST_CAST; }
+    Ast_Expression *expression = nullptr;
 };
 
 #endif

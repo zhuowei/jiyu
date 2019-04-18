@@ -28,6 +28,8 @@ struct Parser {
     Ast_Identifier *parse_identifier();
     Ast_Expression *parse_primary_expression();
     Ast_Expression *parse_postfix_expression();
+    Ast_Expression *parse_multiplicative_expression();
+    Ast_Expression *parse_additive_expression();
     Ast_Expression *parse_expression();
     Ast_Expression *parse_statement();
 

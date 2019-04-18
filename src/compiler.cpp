@@ -6,6 +6,18 @@
 
 #include <stdio.h> // for vprintf
 
+bool types_match(Ast_Type_Info *left, Ast_Type_Info *right) {
+    if (left->type != right->type) return false;
+    if (left->size != right->size) return false;
+
+    if (left->type == Ast_Type_Info::POINTER) {
+        assert(left->pointer_to && right->pointer_to);
+        return types_match(left->pointer_to, right->pointer_to);
+    }
+
+    return true;
+}
+
 Ast_Type_Info *make_pointer_type(Ast_Type_Info *pointee) {
     Ast_Type_Info *info = new Ast_Type_Info();
     info->type = Ast_Type_Info::POINTER;

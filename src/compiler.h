@@ -97,4 +97,16 @@ struct Compiler {
 
 Ast_Type_Info *make_pointer_type(Ast_Type_Info *pointee);
 
+bool types_match(Ast_Type_Info *left, Ast_Type_Info *right);
+
+inline
+bool is_int_type(Ast_Type_Info *info) {
+    return info->type == Ast_Type_Info::INTEGER;
+}
+
+inline
+bool is_float_type(Ast_Type_Info *info) {
+    return info->type == Ast_Type_Info::FLOAT;
+}
+
 #endif
