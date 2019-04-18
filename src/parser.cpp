@@ -255,31 +255,35 @@ Ast_Declaration *Parser::parse_variable_declaration(bool expect_var_keyword) {
 Ast_Type_Info *Parser::parse_type_info() {
     Token *token = peek_token();
 
-    if (token->type == Token::KEYWORD_INT) {
-        next_token();
-        return compiler->type_int32; // @IntegerSize ??
-    }
+    switch (token->type) {
+        case Token::KEYWORD_INT:    next_token(); return compiler->type_int32;  // @IntegerSize ??
+        case Token::KEYWORD_UINT:   next_token(); return compiler->type_uint32; // @IntegerSize ??
+    
+        case Token::KEYWORD_INT8:   next_token(); return compiler->type_int8;
+        case Token::KEYWORD_INT16:  next_token(); return compiler->type_int16;
+        case Token::KEYWORD_INT32:  next_token(); return compiler->type_int32;
+        case Token::KEYWORD_INT64:  next_token(); return compiler->type_int64;
+        
+        case Token::KEYWORD_UINT8:  next_token(); return compiler->type_uint8;
+        case Token::KEYWORD_UINT16: next_token(); return compiler->type_uint16;
+        case Token::KEYWORD_UINT32: next_token(); return compiler->type_uint32;
+        case Token::KEYWORD_UINT64: next_token(); return compiler->type_uint64;
 
-    if (token->type == Token::KEYWORD_UINT8) {
-        next_token();
-        return compiler->type_uint8;
-    }
+        case Token::KEYWORD_FLOAT:  next_token(); return compiler->type_float32;
+        case Token::KEYWORD_DOUBLE: next_token(); return compiler->type_float64;
 
-    if (token->type == Token::KEYWORD_VOID) {
-        next_token();
-        return compiler->type_void;
-    }
+        case Token::KEYWORD_STRING: next_token(); return compiler->type_string;
 
-    if (token->type == Token::KEYWORD_STRING) {
-        next_token();
-        return compiler->type_string;
+        case Token::KEYWORD_VOID:   next_token(); return compiler->type_void;
     }
 
     if (token->type == Token::STAR) {
         next_token();
         auto pointee = parse_type_info();
-        if (!pointee) return nullptr;
-        // @Incomplete report_error here?
+        if (!pointee) {
+            compiler->report_error(token, "Couldn't parse pointer element type.\n");
+            return nullptr;
+        }
 
         return make_pointer_type(pointee);
     }

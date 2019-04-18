@@ -66,6 +66,9 @@ void LLVM_Generator::init() {
     type_i32  = Type::getInt32Ty(*llvm_context);
     type_i64  = Type::getInt64Ty(*llvm_context);
 
+    type_f32  = Type::getFloatTy(*llvm_context);
+    type_f64  = Type::getDoubleTy(*llvm_context);
+
     type_string_length = nullptr;
     if (TargetMachine->getPointerSize(0) == 4) {
         type_string_length = type_i32;
@@ -126,6 +129,14 @@ Type *LLVM_Generator::get_type(Ast_Type_Info *type) {
             case 2: return type_i16;
             case 4: return type_i32;
             case 8: return type_i64;
+            default: assert(false);
+        }
+    }
+
+    if (type->type == Ast_Type_Info::FLOAT) {
+        switch(type->size) {
+            case 4: return type_f32;
+            case 8: return type_f64;
             default: assert(false);
         }
     }

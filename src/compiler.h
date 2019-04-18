@@ -72,6 +72,9 @@ struct Compiler {
     Ast_Type_Info *type_uint32;
     Ast_Type_Info *type_uint64;
 
+    Ast_Type_Info *type_float32;
+    Ast_Type_Info *type_float64;
+
     Ast_Type_Info *type_string;
     Ast_Type_Info *type_string_data;
     Ast_Type_Info *type_string_length;

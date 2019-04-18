@@ -22,6 +22,13 @@ static Ast_Type_Info *make_int_type(bool is_signed, s64 size) {
     return info;
 }
 
+static Ast_Type_Info *make_float_type(s64 size) {
+    Ast_Type_Info *info = new Ast_Type_Info();
+    info->type = Ast_Type_Info::FLOAT;
+    info->size = size;
+    return info;
+}
+
 char *Compiler::get_temp_c_string(String s) {
     char *mem = (char *)malloc(s.length + 1); // @Leak
 
@@ -43,6 +50,9 @@ void Compiler::init() {
     type_uint16 = make_int_type(false, 2);
     type_uint32 = make_int_type(false, 4);
     type_uint64 = make_int_type(false, 8);
+
+    type_float32 = make_float_type(4);
+    type_float64 = make_float_type(8);
 
     type_string = new Ast_Type_Info();
     type_string->type = Ast_Type_Info::STRING;

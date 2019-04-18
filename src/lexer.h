@@ -25,7 +25,17 @@ struct Token {
         KEYWORD_VOID,
         KEYWORD_STRING,
         KEYWORD_INT,
+        KEYWORD_UINT,
         KEYWORD_UINT8,
+        KEYWORD_UINT16,
+        KEYWORD_UINT32,
+        KEYWORD_UINT64,
+        KEYWORD_INT8,
+        KEYWORD_INT16,
+        KEYWORD_INT32,
+        KEYWORD_INT64,
+        KEYWORD_FLOAT,
+        KEYWORD_DOUBLE,
 
         ARROW,
 

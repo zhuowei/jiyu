@@ -1,0 +1,19 @@
+
+
+func main() -> void {
+    var _int:  int;
+    var _uint: uint;
+    
+    var _uint8:  uint8;
+    var _uint16: uint16;
+    var _uint32: uint32;
+    var _uint64: uint64;
+
+    var _int8:  int8;
+    var _int16: int16;
+    var _int32: int32;
+    var _int64: int64;
+
+    var _float: float;
+    var _double: double;
+}

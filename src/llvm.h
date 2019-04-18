@@ -41,6 +41,8 @@ struct LLVM_Generator {
     llvm::Type *type_i16;
     llvm::Type *type_i32;
     llvm::Type *type_i64;
+    llvm::Type *type_f32;
+    llvm::Type *type_f64;
 
     llvm::StructType *type_string;
     llvm::Type *type_string_length;
