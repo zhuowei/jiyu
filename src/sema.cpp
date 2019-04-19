@@ -93,7 +93,7 @@ bool expression_is_lvalue(Ast_Expression *expression, bool parent_wants_lvalue) 
             } else if (un->operator_type == Token::DEREFERENCE_OR_SHIFT) {
                 auto expr = expression_is_lvalue(un->expression, false);
                 if (parent_wants_lvalue && expr) return true;
-                return !expr; // I think this is correct, but I havent thought about it deeply -josh 18 April 2019
+                return false; // I think this is correct, but I havent thought about it deeply -josh 18 April 2019
             } else {
                 assert(false);
             }
@@ -260,7 +260,7 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
 
                 if (un->expression->type == AST_UNARY_EXPRESSION) {
                     auto second = static_cast<Ast_Unary_Expression *>(un->expression);
-                    if (second->operator_type == Token::DEREFERENCE_OR_SHIFT) {
+                    if (second->operator_type == Token::DEREFERENCE_OR_SHIFT && expression_is_lvalue(second->expression, false)) {
                         // remove this sequence of *<< because it is ineffective.
                         return second->expression;
                     }
