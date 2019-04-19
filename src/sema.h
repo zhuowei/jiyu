@@ -25,7 +25,7 @@ struct Sema {
 
     void typecheck_scope(Ast_Scope *scope);
     void typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast_Expression *right, Ast_Expression **result_left, Ast_Expression **result_right);
-    void typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_numeric_type = nullptr);
+    Ast_Expression *typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_numeric_type = nullptr);
     void typecheck_function(Ast_Function *function);
 };
 

@@ -236,7 +236,6 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 auto value = emit_expression(un->expression, is_lvalue);
 
                 if (!is_lvalue) value = irb->CreateLoad(value);
-                value->dump();
                 return value;
             }
 

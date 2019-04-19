@@ -74,7 +74,7 @@ Ast_Expression *cast_float_to_float(Ast_Expression *expr, Ast_Type_Info *target)
     return cast;
 }
 
-bool expression_is_lvalue(Ast_Expression *expression) {
+bool expression_is_lvalue(Ast_Expression *expression, bool parent_wants_lvalue) {
     switch (expression->type) {
         case AST_IDENTIFIER: {
             auto ident = static_cast<Ast_Identifier *>(expression);
@@ -88,10 +88,11 @@ bool expression_is_lvalue(Ast_Expression *expression) {
         case AST_UNARY_EXPRESSION: {
             auto un = static_cast<Ast_Unary_Expression *>(expression);
             if (un->operator_type == Token::STAR) {
-                auto expr = expression_is_lvalue(un->expression);
+                auto expr = expression_is_lvalue(un->expression, true);
                 return !expr; // I think this is correct, but I havent thought about it deeply -josh 18 April 2019
             } else if (un->operator_type == Token::DEREFERENCE_OR_SHIFT) {
-                auto expr = expression_is_lvalue(un->expression);
+                auto expr = expression_is_lvalue(un->expression, false);
+                if (parent_wants_lvalue && expr) return true;
                 return !expr; // I think this is correct, but I havent thought about it deeply -josh 18 April 2019
             } else {
                 assert(false);
@@ -106,11 +107,11 @@ bool expression_is_lvalue(Ast_Expression *expression) {
 // actually, if we do that, then we can't really use this for checking function calls.
 void Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast_Expression *right, Ast_Expression **result_left, Ast_Expression **result_right) {
      if (left->type == AST_LITERAL) {
-        typecheck_expression(right);
-        typecheck_expression(left, right->type_info);
+        right = typecheck_expression(right);
+        left  = typecheck_expression(left, right->type_info);
     } else {
-        typecheck_expression(left);
-        typecheck_expression(right, left->type_info);
+        left  = typecheck_expression(left);
+        right = typecheck_expression(right, left->type_info);
     }
     
     assert(left->type_info);
@@ -142,7 +143,7 @@ void Sema::typecheck_scope(Ast_Scope *scope) {
     scope_stack.add(scope);
 
     for (auto &it : scope->statements) {
-        typecheck_expression(it);
+        auto _ = typecheck_expression(it);
     }
 
     scope_stack.pop();
@@ -177,7 +178,7 @@ Ast_Expression *Sema::find_declaration_for_atom(Atom *atom) {
 }
 
 
-void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_numeric_type) {
+Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_numeric_type) {
     switch (expression->type) {
         case AST_IDENTIFIER: {
             auto ident = static_cast<Ast_Identifier *>(expression);
@@ -194,14 +195,15 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 ident->resolved_declaration = decl;
                 ident->type_info = decl->type_info;
             }
-            break;
+
+            return ident;
         }
 
         case AST_DECLARATION: {
             auto decl = static_cast<Ast_Declaration *>(expression);
 
             // @TODO prevent use of a declaration in it's initializer
-            if (decl->initializer_expression) typecheck_expression(decl->initializer_expression, decl->type_info);
+            if (decl->initializer_expression) decl->initializer_expression = typecheck_expression(decl->initializer_expression, decl->type_info);
 
             if (!decl->type_info) {
                 assert(decl->initializer_expression);
@@ -219,11 +221,11 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     printf("\n");
                     print_type(decl->initializer_expression->type_info);
                     printf("\n");
-                    return;
+                    return decl;
                 }
             }
 
-            break;
+            return decl;
         }
 
         case AST_BINARY_EXPRESSION: {
@@ -240,33 +242,41 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 // @TODO attempt to implicit cast
                 // @TOOD report operator
                 compiler->report_error(nullptr, "Incompatible types found on lhs and rhs of binary operator.");
-                return;
+                return bin;
             }
 
-            break;
+            return bin;
         }
 
         case AST_UNARY_EXPRESSION: {
             auto un = static_cast<Ast_Unary_Expression *>(expression);
-            typecheck_expression(un->expression);
+            un->expression = typecheck_expression(un->expression);
 
             if (un->operator_type == Token::STAR) {
-                if (!expression_is_lvalue(un->expression)) {
-                    compiler->report_error(nullptr, "lvalue required as unary ‘%c’ operand.\n", un->operator_type);
+                if (!expression_is_lvalue(un->expression, true)) {
+                    compiler->report_error(nullptr, "lvalue required as unary '%c' operand.\n", un->operator_type);
                 }
                 un->type_info = make_pointer_type(un->expression->type_info);
+
+                if (un->expression->type == AST_UNARY_EXPRESSION) {
+                    auto second = static_cast<Ast_Unary_Expression *>(un->expression);
+                    if (second->operator_type == Token::DEREFERENCE_OR_SHIFT) {
+                        // remove this sequence of *<< because it is ineffective.
+                        return second->expression;
+                    }
+                }
             } else if (un->operator_type == Token::DEREFERENCE_OR_SHIFT) {
                 auto type = un->expression->type_info;
                 if (type->type != Ast_Type_Info::POINTER) {
                     compiler->report_error(nullptr, "Cannot use '<<' on a non-pointer expression.\n");
-                    return;
+                    return un;
                 }
 
                 un->type_info = type->pointer_to;
             }
 
             assert(un->type_info);
-            break;
+            return un;
         }
 
         case AST_LITERAL: {
@@ -295,19 +305,21 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             }
             
             if (lit->literal_type == Ast_Literal::STRING)  lit->type_info = compiler->type_string;
-            break;
+            
+            return lit;
         }
 
         case AST_FUNCTION: {
             auto function = static_cast<Ast_Function *>(expression);
             typecheck_function(function);
-            break;
+            return function;
         }
 
         case AST_FUNCTION_CALL: {
             auto call = static_cast<Ast_Function_Call *>(expression);
-            typecheck_expression(call->identifier);
-            if (compiler->errors_reported) return;
+            auto _ = typecheck_expression(call->identifier);
+            
+            if (compiler->errors_reported) return nullptr;
 
             assert(call->identifier->resolved_declaration);
             auto function = static_cast<Ast_Function *>(call->identifier->resolved_declaration);
@@ -315,12 +327,12 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             if (function->type != AST_FUNCTION) {
                 String name = call->identifier->name->name;
                 compiler->report_error(nullptr, "Declaration '%.*s' is not a function.\n", name.length, name.data);
-                return;
+                return call;
             }
 
             if (call->argument_list.count != function->arguments.count) {
                 compiler->report_error(nullptr, "Mismatch in function call arguments. Wanted %lld, got %lld.\n", function->arguments.count, call->argument_list.count);
-                return;
+                return call;
             }
 
             typecheck_function(function);
@@ -335,19 +347,19 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
 
                 if (!types_match(value->type_info, param->type_info)) {
                     compiler->report_error(nullptr, "Mismatch in function call argument types.\n");
-                    return;
+                    return call;
                 }
 
                 // set value into the list in case it got implicitly cast
                 call->argument_list[i] = value;
             }
 
-            break;
+            return call;
         }
 
         case AST_DEREFERENCE: {
             auto deref = static_cast<Ast_Dereference *>(expression);
-            typecheck_expression(deref->left);
+            deref->left = typecheck_expression(deref->left);
 
             
             assert(deref->left->type_info);
@@ -357,7 +369,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             if (left_type->type != Ast_Type_Info::STRING) {
                 // @Incomplete report_error
                 compiler->report_error(nullptr, "Attempt to dereference a type that is not a string or struct!\n");
-                return;
+                return deref;
             }
 
             // @Hack until we have field members in the type_info (data and length would be field members of string)
@@ -378,14 +390,17 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 deref->byte_offset = 8; // @TargetInfo
                 deref->type_info = compiler->type_string_length;
             }
-            break;
+            return deref;
         }
 
         case AST_CAST: {
             assert(false); // @Incomplete
-            break;
+            return nullptr;
         }
     }
+
+    assert(false);
+    return nullptr;
 }
 
 void Sema::typecheck_function(Ast_Function *function) {

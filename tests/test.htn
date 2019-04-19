@@ -2,21 +2,24 @@ func exit(value: int);
 func _write(fd: int, buf: *uint8, count: int);
 
 func test_func() -> void {
+    // @TODO verify that these things all produce expected results.
     var _int: int = 10;
-    var intptr: *int = *_int;
+    var intptr: *int;
     
 
     // intptr = *_int;
 
-    var __int2: int = << <<*<<*intptr;
+    // var __int2: int = << <<*<<*intptr;
 
-    var n = *intptr;
-    var n2 = <<intptr;
-    var n3 = << *intptr;
-    var n4 = << << *intptr;
+    // var n = *intptr;
+    // var n2 = <<intptr;
+    // var n3 = << *intptr;
+    // var n4 = << << *intptr;
 
     // @FixMe this works in C but not here
-    var n5 = *<<intptr;
+    // var n5 = <<*<<intptr;
+
+    var n6 = **<< * <<*intptr;
 }
 
 func main (arg: int, arg2: int) -> void {
