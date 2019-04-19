@@ -123,3 +123,4 @@ void Compiler::report_error(Token *tok, char *fmt, ...) {
 
     // __builtin_debugtrap();
 }
+

@@ -11,6 +11,7 @@ struct Ast_Declaration;
 enum Ast_Type {
     AST_UNINITIALIZED,
     AST_BINARY_EXPRESSION,
+    AST_UNARY_EXPRESSION,
     AST_IDENTIFIER,
     AST_DECLARATION,
     AST_SCOPE,
@@ -55,6 +56,13 @@ struct Ast_Expression : Ast {
     Ast_Type_Info *type_info = nullptr;
 };
 
+struct Ast_Unary_Expression : Ast_Expression {
+    Ast_Unary_Expression() { type = AST_UNARY_EXPRESSION; }
+
+    Token::Type operator_type;
+    Ast_Expression *expression = nullptr;
+};
+
 struct Ast_Binary_Expression : Ast_Expression {
     Ast_Binary_Expression() { type = AST_BINARY_EXPRESSION; }
 
@@ -74,7 +82,7 @@ struct Ast_Dereference : Ast_Expression {
     Ast_Dereference() { type = AST_DEREFERENCE; }
 
     Ast_Expression *left;
-    Ast_Identifier *field_selector;
+    Ast_Identifier *field_selector = nullptr;
 
     s64 element_path_index = -1; // 0-based element into the list of declarations or fields within the outer type
     s64 byte_offset = -1; // byte-offset from the start of the the memory occupied by the outer type

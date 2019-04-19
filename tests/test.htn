@@ -1,6 +1,24 @@
 func exit(value: int);
 func _write(fd: int, buf: *uint8, count: int);
 
+func test_func() -> void {
+    var _int: int = 10;
+    var intptr: *int = *_int;
+    
+
+    // intptr = *_int;
+
+    var __int2: int = << <<*<<*intptr;
+
+    var n = *intptr;
+    var n2 = <<intptr;
+    var n3 = << *intptr;
+    var n4 = << << *intptr;
+
+    // @FixMe this works in C but not here
+    var n5 = *<<intptr;
+}
+
 func main (arg: int, arg2: int) -> void {
     var my_var: int = 10;
     var my_var2 = my_var;
@@ -12,3 +30,4 @@ func main (arg: int, arg2: int) -> void {
    _write(1, my_string.data, 14);
    exit(11);
 }
+

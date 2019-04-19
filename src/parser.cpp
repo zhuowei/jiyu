@@ -147,9 +147,31 @@ Ast_Expression *Parser::parse_postfix_expression() {
     return sub_expression;
 }
 
+Ast_Expression *Parser::parse_unary_expression() {
+    Token *token = peek_token();
+
+    if (token->type == Token::STAR || token->type == Token::DEREFERENCE_OR_SHIFT) {
+        next_token();
+
+        Ast_Unary_Expression *ref = new Ast_Unary_Expression();
+        ref->operator_type = token->type;
+
+        // we recurse through parse_unary_expression here, but we may be better off using a loop
+        auto expression = parse_unary_expression();
+        if (!expression) {
+            compiler->report_error(token, "Malformed expression following unary operator '%d'.\n", token->type);
+            return nullptr;
+        }
+
+        ref->expression = expression;
+        return ref;
+    }
+
+    return parse_postfix_expression();
+}
+
 Ast_Expression *Parser::parse_multiplicative_expression() {
-    // @Cleanup this should be parse_unary_expression
-    auto sub_expression = parse_postfix_expression();
+    auto sub_expression = parse_unary_expression();
 
     Token *token = peek_token();
     while (token->type != Token::END) {
@@ -163,8 +185,7 @@ Ast_Expression *Parser::parse_multiplicative_expression() {
             bin->operator_type = token->type;
             bin->left = sub_expression;
 
-            // @Cleanup this should be parse_unary_expression
-            auto right = parse_postfix_expression();
+            auto right = parse_unary_expression();
             if (!right) {
                 compiler->report_error(token, "Malformed expression following '%c' operator.\n", token->type);
                 return nullptr;

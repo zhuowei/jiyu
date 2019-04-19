@@ -214,6 +214,12 @@ Token Lexer::lex_token() {
             Token result = make_string_token(Token::COMMENT, Span(start, length), text.substring(start, length));
             return result;
         }
+    } else if (text[current_char] == '<') {
+        if (current_char+1 < text.length && text[current_char+1] == '<') {
+            string_length_type start = current_char;
+            current_char += 2;
+            return make_token(Token::DEREFERENCE_OR_SHIFT, Span(start, 2));
+        }
     }
 
     char c = text[current_char];

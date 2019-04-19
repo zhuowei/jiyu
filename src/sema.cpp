@@ -3,6 +3,53 @@
 #include "ast.h"
 #include "compiler.h"
 
+#include <stdio.h>
+
+void print_type(Ast_Type_Info *info) {
+    if (info->type == Ast_Type_Info::INTEGER) {
+        if (info->is_signed) {
+            switch (info->size) {
+                case 1: printf("int8"); return;
+                case 2: printf("int16"); return;
+                case 4: printf("int32"); return;
+                case 8: printf("int64"); return;
+                default: assert(false);
+            }
+        } else {
+            switch (info->size) {
+                case 1: printf("uint8"); return;
+                case 2: printf("uint16"); return;
+                case 4: printf("uint32"); return;
+                case 8: printf("uint64"); return;
+                default: assert(false);
+            }
+        }
+    }
+
+    if (info->type == Ast_Type_Info::FLOAT) {
+        if (info->size == 4) {
+            printf("float");
+        } else {
+            assert(info->size == 8);
+            printf("double");
+        }
+        return;
+    }
+
+    if (info->type == Ast_Type_Info::POINTER) {
+        printf("*");
+        print_type(info->pointer_to);
+        return;
+    }
+
+    if (info->type == Ast_Type_Info::STRING) {
+        printf("string");
+        return;
+    }
+
+    assert(false);
+}
+
 Ast_Expression *cast_int_to_int(Ast_Expression *expr, Ast_Type_Info *target) {
     assert(expr->type_info->type == Ast_Type_Info::INTEGER);
     assert(target->type == Ast_Type_Info::INTEGER);
@@ -25,6 +72,34 @@ Ast_Expression *cast_float_to_float(Ast_Expression *expr, Ast_Type_Info *target)
     cast->expression = expr;
     cast->type_info = target;
     return cast;
+}
+
+bool expression_is_lvalue(Ast_Expression *expression) {
+    switch (expression->type) {
+        case AST_IDENTIFIER: {
+            auto ident = static_cast<Ast_Identifier *>(expression);
+            auto decl = ident->resolved_declaration;
+
+            // @Incomplete return false for constant declarations
+
+            return decl != nullptr;
+        }
+
+        case AST_UNARY_EXPRESSION: {
+            auto un = static_cast<Ast_Unary_Expression *>(expression);
+            if (un->operator_type == Token::STAR) {
+                auto expr = expression_is_lvalue(un->expression);
+                return !expr; // I think this is correct, but I havent thought about it deeply -josh 18 April 2019
+            } else if (un->operator_type == Token::DEREFERENCE_OR_SHIFT) {
+                auto expr = expression_is_lvalue(un->expression);
+                return !expr; // I think this is correct, but I havent thought about it deeply -josh 18 April 2019
+            } else {
+                assert(false);
+            }
+        }
+    }
+
+    return false;
 }
 
 // @Cleanup if we introduce expression substitution, then we can remove the resut parameters and just set (left/right)->substitution
@@ -140,6 +215,10 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     // @TODO report the types here
                     // @TODO attempt to implciit cast if available
                     compiler->report_error(nullptr, "Attempt to initialize variable with expression of incompatible type.\n");
+                    print_type(decl->type_info);
+                    printf("\n");
+                    print_type(decl->initializer_expression->type_info);
+                    printf("\n");
                     return;
                 }
             }
@@ -164,6 +243,29 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 return;
             }
 
+            break;
+        }
+
+        case AST_UNARY_EXPRESSION: {
+            auto un = static_cast<Ast_Unary_Expression *>(expression);
+            typecheck_expression(un->expression);
+
+            if (un->operator_type == Token::STAR) {
+                if (!expression_is_lvalue(un->expression)) {
+                    compiler->report_error(nullptr, "lvalue required as unary ‘%c’ operand.\n", un->operator_type);
+                }
+                un->type_info = make_pointer_type(un->expression->type_info);
+            } else if (un->operator_type == Token::DEREFERENCE_OR_SHIFT) {
+                auto type = un->expression->type_info;
+                if (type->type != Ast_Type_Info::POINTER) {
+                    compiler->report_error(nullptr, "Cannot use '<<' on a non-pointer expression.\n");
+                    return;
+                }
+
+                un->type_info = type->pointer_to;
+            }
+
+            assert(un->type_info);
             break;
         }
 

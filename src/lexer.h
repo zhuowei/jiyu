@@ -41,7 +41,8 @@ struct Token {
         KEYWORD_FLOAT,
         KEYWORD_DOUBLE,
 
-        ARROW,
+        ARROW,              // ->
+        DEREFERENCE_OR_SHIFT, // <<
 
         COMMENT,
     };

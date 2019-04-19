@@ -1,4 +1,9 @@
 
+// @FixMe this works in C but not here
+ var _int: int = 10;
+var intptr: *int = *_int;
+var n5 = *<<intptr;
+
 Allow declaring a void-return function without doing "-> void"
 
 error when we use an identifier before it's declared withing function scope

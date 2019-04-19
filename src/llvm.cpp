@@ -226,6 +226,24 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             return nullptr;
         }
 
+        case AST_UNARY_EXPRESSION: {
+            auto un = static_cast<Ast_Unary_Expression *>(expression);
+
+            if (un->operator_type == Token::STAR) {
+                auto value = emit_expression(un->expression, true);
+                return value;
+            } else if (un->operator_type == Token::DEREFERENCE_OR_SHIFT) {
+                auto value = emit_expression(un->expression, is_lvalue);
+
+                if (!is_lvalue) value = irb->CreateLoad(value);
+                value->dump();
+                return value;
+            }
+
+            assert(false);
+            break;
+        }
+
         case AST_BINARY_EXPRESSION: {
             auto bin = static_cast<Ast_Binary_Expression *>(expression);
 
