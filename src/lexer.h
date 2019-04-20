@@ -41,6 +41,8 @@ struct Token {
         KEYWORD_FLOAT,
         KEYWORD_DOUBLE,
 
+        TEMPORARY_KEYWORD_C_VARARGS = 300,
+
         ARROW,              // ->
         DEREFERENCE_OR_SHIFT, // <<
 

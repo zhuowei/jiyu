@@ -1,6 +1,8 @@
 func exit(value: int);
 func _write(fd: int, buf: *uint8, count: int);
 
+func printf(fmt: *uint8, temporary_c_vararg);
+
 func test_func() -> void {
     // @TODO verify that these things all produce expected results.
     var _int: int = 10;
@@ -23,7 +25,7 @@ func test_func() -> void {
 
     var n7: ***int;
     // THIS IS SUPPOSED TO FAIL
-    var n8 = *  << << n7;
+    // var n8 = *  << << n7;
 }
 
 func main (arg: int, arg2: int) -> void {
@@ -35,6 +37,8 @@ func main (arg: int, arg2: int) -> void {
    var my_string = "Hello, World!\n";
    _write(1, "Hello, Sailor!\n".data, 15);
    _write(1, my_string.data, 14);
+
+   printf("Test %d\n".data, my_var);
    exit(11);
 }
 

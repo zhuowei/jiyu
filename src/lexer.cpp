@@ -93,6 +93,8 @@ Token Lexer::lex_token() {
         else if (result.string == to_string("float"))  result.type = Token::KEYWORD_FLOAT;
         else if (result.string == to_string("double")) result.type = Token::KEYWORD_DOUBLE;
 
+        else if (result.string == to_string("temporary_c_vararg")) result.type = Token::TEMPORARY_KEYWORD_C_VARARGS;
+
         return result;
     } else if (is_digit(text[current_char])) {
         auto start = current_char;

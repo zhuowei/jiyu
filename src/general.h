@@ -120,8 +120,8 @@ struct Span {
     void map_to_text_coordinates(String text, string_length_type *line_start, string_length_type *char_start, string_length_type *line_end, string_length_type *char_end) {
         assert(fits_in_string(text));
 
-        string_length_type line_count = 0;
-        string_length_type char_count = 0;
+        string_length_type line_count = 1;
+        string_length_type char_count = 1;
         for (string_length_type i = 0; i < text.length; ++i) {
             if (i == start) {
                 *line_start = line_count;
@@ -134,7 +134,7 @@ struct Span {
 
             if (text[i] == '\n') {
                 line_count++;
-                char_count = 0;
+                char_count = 1;
                 continue;
             }
 

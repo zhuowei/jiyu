@@ -169,7 +169,7 @@ FunctionType *LLVM_Generator::create_function_type(Ast_Function *function) {
         Type *type = get_type(ret->type_info)->getPointerTo();
         arguments.add(type);
     }
-    return FunctionType::get(type_void, ArrayRef<Type *>(arguments.data, arguments.count), false);
+    return FunctionType::get(type_void, ArrayRef<Type *>(arguments.data, arguments.count), function->is_c_varargs);
 }
 
 Value *LLVM_Generator::get_value_for_decl(Ast_Declaration *decl) {
@@ -390,6 +390,15 @@ Function *LLVM_Generator::get_or_create_function(Ast_Function *function) {
     if (!func) {
         FunctionType *function_type = create_function_type(function);
         func = Function::Create(function_type, GlobalValue::LinkageTypes::ExternalLinkage, string_ref(name), llvm_module);
+
+        array_count_type i = 0;
+        for (auto &a : func->args()) {
+            if (i < function->arguments.count) {
+                a.setName(string_ref(function->arguments[i]->identifier->name->name));
+
+                ++i;
+            }
+        }
     }
 
     return func;

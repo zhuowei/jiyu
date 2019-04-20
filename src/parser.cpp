@@ -305,7 +305,10 @@ Ast_Declaration *Parser::parse_variable_declaration(bool expect_var_keyword) {
 
     Token *ident_token = peek_token(); // used for error below, @Cleanup we want to be able to report errors using an Ast
     Ast_Identifier *ident = parse_identifier();
-    if (!ident) return nullptr;
+    if (!ident) {
+        compiler->report_error(ident_token, "Expected identifier for variable declaration.\n");
+        return nullptr;
+    }
 
     Ast_Declaration *decl = new Ast_Declaration();
     decl->identifier = ident;
@@ -395,7 +398,23 @@ Ast_Function *Parser::parse_function() {
 
         if (function->arguments.count > 0 && token->type == ',') {
             next_token();
+            token = peek_token();
         } else  if (token->type == ')') break;
+
+        // @Temporary
+        // @Temporary
+        // @Temporary
+        if (token->type == Token::TEMPORARY_KEYWORD_C_VARARGS) {
+            next_token();
+            function->is_c_varargs = true;
+
+            token = peek_token();
+            if (token->type != ')') {
+                compiler->report_error(token, "Expected ')' following 'temporary_c_vararg' declarator.\n");
+                return nullptr;
+            }
+            break;
+        }
 
         Ast_Declaration *decl = parse_variable_declaration(false);
         if (decl) function->arguments.add(decl);

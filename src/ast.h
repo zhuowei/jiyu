@@ -134,6 +134,8 @@ struct Ast_Function : Ast_Expression {
     Array<Ast_Declaration *> returns;
 
     Ast_Scope *scope = nullptr;
+
+    bool is_c_varargs = false;
 };
 
 struct Ast_Cast : Ast_Expression {

@@ -143,6 +143,7 @@ void Sema::typecheck_scope(Ast_Scope *scope) {
     scope_stack.add(scope);
 
     for (auto &it : scope->statements) {
+        // @TODO should we do replacements at the scope level?
         auto _ = typecheck_expression(it);
     }
 
@@ -330,7 +331,8 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
                 return call;
             }
 
-            if (call->argument_list.count != function->arguments.count) {
+            bool pass_c_varags = (function->is_c_varargs && call->argument_list.count >= function->arguments.count);
+            if (!pass_c_varags &&  call->argument_list.count != function->arguments.count) {
                 compiler->report_error(nullptr, "Mismatch in function call arguments. Wanted %lld, got %lld.\n", function->arguments.count, call->argument_list.count);
                 return call;
             }
@@ -340,14 +342,19 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
             // @Incomplete check that types match between arguments
             for (array_count_type i = 0; i < call->argument_list.count; ++i) {
                 auto value = call->argument_list[i];
-                auto param = function->arguments[i];
 
-                // use null for morphed param because 
-                typecheck_and_implicit_cast_expression_pair(param, value, nullptr, &value);
+                if (function->is_c_varargs && i < function->arguments.count) {
+                    // use null for morphed param because we don't care about the modified value because function parameter declarations can't be mutated here
+                    auto param = function->arguments[i];
+                    typecheck_and_implicit_cast_expression_pair(param, value, nullptr, &value);
 
-                if (!types_match(value->type_info, param->type_info)) {
-                    compiler->report_error(nullptr, "Mismatch in function call argument types.\n");
-                    return call;
+                    if (!types_match(value->type_info, param->type_info)) {
+                        compiler->report_error(nullptr, "Mismatch in function call argument types.\n");
+                        return call;
+                    }
+                } else {
+                    // just do a normal typecheck on the call argument since this is for varargs
+                    value = typecheck_expression(value);
                 }
 
                 // set value into the list in case it got implicitly cast
