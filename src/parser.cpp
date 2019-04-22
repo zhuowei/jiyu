@@ -42,6 +42,7 @@ bool Parser::expect_and_eat(Token::Type type) {
 
 Ast_Identifier *Parser::parse_identifier() {
     if (!expect(Token::IDENTIFIER)) return nullptr;
+     Ast_Identifier *ident = AST_NEW(Ast_Identifier);
     
     Token *token = next_token();
     String name = token->string;
@@ -49,7 +50,6 @@ Ast_Identifier *Parser::parse_identifier() {
     Atom *atom = compiler->make_atom(name);
     assert(atom);
     
-    Ast_Identifier *ident = AST_NEW(Ast_Identifier);
     ident->name = atom;
     return ident;
 }

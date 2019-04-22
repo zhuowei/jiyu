@@ -1,8 +1,6 @@
 
 // @TODO should we do replacements at the scope level?
 
-Allow declaring a void-return function without doing "-> void"
-
 error when we use an identifier before it's declared withing function scope
 
 ================

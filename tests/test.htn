@@ -7,6 +7,8 @@ func test_func() -> void {
     // @TODO verify that these things all produce expected results.
     var _int: int = 10;
     var intptr: *int;
+
+    var test_error = whatever;
     
 
     // intptr = *_int;
