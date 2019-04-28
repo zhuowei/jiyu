@@ -499,5 +499,22 @@ void Sema::typecheck_function(Ast_Function *function) {
         }
     }
     
-    if (function->scope) typecheck_scope(function->scope);
+    if (function->scope) {
+        // I dont yet know if this is the best way to handle this, but we create a stand-in scope with
+        // parameter declarations so the typechecker can find semantic relationships for the function
+        // parameters. -josh 28 April 2019
+
+        Ast_Scope *scope = new Ast_Scope(); // @Leak
+        scope->text_span = function->scope->text_span;
+
+        // @TODO should we add the parameters as statements too?
+        for (auto &a : function->arguments) {
+            scope->declarations.add(a);
+        }
+
+        scope->statements.add(function->scope);
+
+        typecheck_scope(scope);
+        // typecheck_scope(function->scope);
+    }
 }
