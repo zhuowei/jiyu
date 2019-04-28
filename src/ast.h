@@ -157,6 +157,7 @@ struct Ast_Function : Ast_Expression {
     
     Ast_Scope *scope = nullptr;
     
+    bool is_c_function = false;
     bool is_c_varargs = false;
 };
 

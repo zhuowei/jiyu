@@ -64,8 +64,10 @@ Token Lexer::lex_token() {
     
     if (!(current_char < text.length)) return make_eof_token();
     
-    if (starts_identifier(text[current_char])) {
+    if (starts_identifier(text[current_char]) || text[current_char] == '@') {
         auto start = current_char;
+        current_char++;
+        
         while (current_char < text.length && continues_identifier(text[current_char])) {
             current_char++;
         }
@@ -100,6 +102,9 @@ Token Lexer::lex_token() {
         else if (result.string == to_string("while"))  result.type = Token::KEYWORD_WHILE;
         else if (result.string == to_string("break"))  result.type = Token::KEYWORD_BREAK;
         else if (result.string == to_string("continue")) result.type = Token::KEYWORD_CONTINUE;
+        
+        // @Cleanup we should probably have a "tag" token
+        else if (result.string == to_string("@c_function")) result.type = Token::TAG_C_FUNCTION;
         
         else if (result.string == to_string("temporary_c_vararg")) result.type = Token::TEMPORARY_KEYWORD_C_VARARGS;
         

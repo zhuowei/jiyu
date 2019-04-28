@@ -1,0 +1,33 @@
+
+func @c_function glfwInit();
+func @c_function glfwCreateWindow(width: int32, height: int32, title: *uint8, unk: int64, unk1: int64) -> *void;
+func @c_function glfwTerminate();
+func @c_function glfwMakeContextCurrent(window: *void);
+func @c_function glfwWindowShouldClose(window: *void) -> bool;
+func @c_function glfwSwapBuffers(window: *void);
+func @c_function glfwPollEvents();
+
+
+func @c_function glClearColor(r: float, g: float, b: float, a: float);
+func @c_function glClear(bits: uint32);
+
+
+func main() {
+	var window: *void;
+
+	glfwInit();
+
+	window = glfwCreateWindow(640, 480, "Hello, Sailor!".data, 0, 0);
+	
+	glfwMakeContextCurrent(window);
+
+	while glfwWindowShouldClose(window) == false {
+		glClearColor(0, 1, 0, 1);
+		glClear(16384); // GL_COLOR_BUFFER_BIT
+
+		glfwSwapBuffers(window);
+		glfwPollEvents();
+	}
+
+	glfwTerminate();
+}

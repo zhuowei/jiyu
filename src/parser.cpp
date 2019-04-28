@@ -735,12 +735,18 @@ Ast_Function *Parser::parse_function() {
     
     Ast_Function *function = AST_NEW(Ast_Function);
     
+    Token *token = peek_token();
+    if (token->type == Token::TAG_C_FUNCTION) {
+        function->is_c_function = true;
+        next_token();
+    }
+    
     Ast_Identifier *ident = parse_identifier();
     if (!ident) return nullptr;
     
     if (!expect_and_eat((Token::Type) '(')) return nullptr;
     
-    Token *token = peek_token();
+    token = peek_token();
     while (token->type != Token::END) {
         
         if (function->arguments.count > 0 && token->type == ',') {
@@ -812,6 +818,9 @@ Ast_Function *Parser::parse_function() {
     
     
     if (peek_token()->type == '{') {
+        if (function->is_c_function) {
+            compiler->report_error(function, "Function marked @c_function cannot be succeeded by a function body.\n");
+        }
         Ast_Scope *scope = AST_NEW(Ast_Scope);
         parse_scope(scope, true);
         

@@ -119,6 +119,8 @@ void Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast
         right = typecheck_expression(right, left->type_info);
     }
     
+    if (compiler->errors_reported) return;
+    
     assert(left->type_info);
     assert(right->type_info);
     
@@ -237,6 +239,8 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
             auto bin = static_cast<Ast_Binary_Expression *>(expression);
             
             typecheck_and_implicit_cast_expression_pair(bin->left, bin->right, &bin->left, &bin->right);
+            
+            if (compiler->errors_reported) return bin;
             
             // @Hack @Incomplete
             bin->type_info = bin->left->type_info;
@@ -358,7 +362,7 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
             for (array_count_type i = 0; i < call->argument_list.count; ++i) {
                 auto value = call->argument_list[i];
                 
-                if (function->is_c_varargs && i < function->arguments.count) {
+                if (i < function->arguments.count) {
                     // use null for morphed param because we don't care about the modified value because function parameter declarations can't be mutated here
                     auto param = function->arguments[i];
                     typecheck_and_implicit_cast_expression_pair(param, value, nullptr, &value);
@@ -367,13 +371,23 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
                         compiler->report_error(value, "Mismatch in function call argument types.\n");
                         return call;
                     }
-                } else {
+                } else if (function->is_c_varargs) {
                     // just do a normal typecheck on the call argument since this is for varargs
                     value = typecheck_expression(value);
+                } else {
+                    assert(false);
                 }
                 
                 // set value into the list in case it got implicitly cast
                 call->argument_list[i] = value;
+            }
+            
+            if (function->returns.count) {
+                assert(function->returns.count == 1 && "Internal error: support for multiple return values.");
+                
+                call->type_info = function->returns[0]->type_info;
+            } else {
+                call->type_info = compiler->type_void;
             }
             
             return call;
@@ -473,6 +487,16 @@ void Sema::typecheck_function(Ast_Function *function) {
     
     for (auto &r : function->returns) {
         typecheck_expression(r);
+    }
+    
+    if (function->is_c_varargs && !function->is_c_function) {
+        compiler->report_error(function, "Function must be tagged @c_function in order to use temporary_c_vararg.\n");
+    }
+    
+    if (function->is_c_function) {
+        if (function->returns.count > 1) {
+            compiler->report_error(function, "Function tagged @c_function may only have 1 return value.\n");
+        }
     }
     
     if (function->scope) typecheck_scope(function->scope);

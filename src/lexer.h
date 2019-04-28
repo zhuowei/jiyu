@@ -58,6 +58,8 @@ struct Token {
         KEYWORD_TRUE,
         KEYWORD_FALSE,
         
+        TAG_C_FUNCTION,
+        
         TEMPORARY_KEYWORD_C_VARARGS = 300,
         
         GE_OP,                // >=

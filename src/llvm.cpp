@@ -121,7 +121,8 @@ static StringRef string_ref(String s) {
 
 Type *LLVM_Generator::get_type(Ast_Type_Info *type) {
     if (type->type == Ast_Type_Info::VOID) {
-        return type_void;
+        // return type_i8 for pointers.
+        return type_i8;
     }
     
     if (type->type == Ast_Type_Info::INTEGER) {
@@ -161,6 +162,7 @@ Type *LLVM_Generator::get_type(Ast_Type_Info *type) {
 
 FunctionType *LLVM_Generator::create_function_type(Ast_Function *function) {
     Array<Type *> arguments;
+    Type *return_type = type_void;
     
     for (auto &arg : function->arguments) {
         if (arg->type_info == compiler->type_void) continue;
@@ -169,12 +171,18 @@ FunctionType *LLVM_Generator::create_function_type(Ast_Function *function) {
         arguments.add(type);
     }
     
-    for (auto &ret : function->returns) {
-        if (ret->type_info == compiler->type_void) continue;
-        Type *type = get_type(ret->type_info)->getPointerTo();
-        arguments.add(type);
+    if (function->is_c_function) {
+        if (function->returns.count > 0) {
+            return_type = get_type(function->returns[0]->type_info);
+        }
+    } else {
+        for (auto &ret : function->returns) {
+            if (ret->type_info == compiler->type_void) continue;
+            Type *type = get_type(ret->type_info)->getPointerTo();
+            arguments.add(type);
+        }
     }
-    return FunctionType::get(type_void, ArrayRef<Type *>(arguments.data, arguments.count), function->is_c_varargs);
+    return FunctionType::get(return_type, ArrayRef<Type *>(arguments.data, arguments.count), function->is_c_varargs);
 }
 
 Value *LLVM_Generator::get_value_for_decl(Ast_Declaration *decl) {
@@ -338,7 +346,11 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             auto func = get_or_create_function(target_function);
             
             assert(func);
-            // func->dump();
+            
+            for (auto &r : args) {
+                r->dump();
+            }
+            func->dump();
             return irb->CreateCall(func, ArrayRef<Value *>(args.data, args.count));
         }
         
