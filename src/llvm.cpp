@@ -280,7 +280,9 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                         }
                     }
                     case Token::PLUS:  return irb->CreateAdd(left, right);
-                    case Token::MINUS: return irb->CreateSub(left, right); 
+                    case Token::MINUS: return irb->CreateSub(left, right);
+                    case Token::EQ_OP: return irb->CreateICmpEQ(left, right);
+                    case Token::NE_OP: return irb->CreateICmpNE(left, right);
                     default: assert(false);
                 }
             }
@@ -417,6 +419,35 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             irb->CreateCondBr(cond, then_block, failure_target);
             irb->SetInsertPoint(next_block);
             
+            break;
+        }
+        
+        case AST_WHILE: {
+            auto loop = static_cast<Ast_While *>(expression);
+            
+            auto current_block = irb->GetInsertBlock();
+            
+            BasicBlock *next_block = BasicBlock::Create(*llvm_context, "", current_block->getParent());
+            BasicBlock *loop_header = BasicBlock::Create(*llvm_context, "loop_header", current_block->getParent());
+            BasicBlock *loop_body = BasicBlock::Create(*llvm_context, "loop_body", current_block->getParent());
+            
+            
+            irb->CreateBr(loop_header);
+            
+            irb->SetInsertPoint(loop_header);
+            // emit the condition in the loop header so that it always executes when we loop back around
+            auto cond = emit_expression(loop->condition);
+            irb->SetInsertPoint(loop_header);
+            irb->CreateCondBr(cond, loop_body, next_block);
+            
+            irb->SetInsertPoint(loop_body);
+            if (loop->statement) {
+                emit_expression(loop->statement);
+                irb->SetInsertPoint(loop_body);
+                irb->CreateBr(loop_header);
+            }
+            
+            irb->SetInsertPoint(next_block);
             break;
         }
     }

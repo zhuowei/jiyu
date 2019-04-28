@@ -21,6 +21,7 @@ enum Ast_Type {
     AST_DEREFERENCE,
     AST_CAST,
     AST_IF,
+    AST_WHILE,
 };
 
 struct Ast {
@@ -106,6 +107,13 @@ struct Ast_If : Ast_Expression {
     
     Ast_Expression *then_statement = nullptr;
     Ast_Expression *else_statement = nullptr;
+};
+
+struct Ast_While : Ast_Expression {
+    Ast_While() { type = AST_WHILE; }
+    
+    Ast_Expression *condition = nullptr;
+    Ast_Expression *statement = nullptr;
 };
 
 struct Ast_Literal : Ast_Expression {

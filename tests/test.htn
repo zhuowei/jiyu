@@ -52,11 +52,21 @@ func test_bool() {
 
 	var b = v;
 
-	if t printf("t is true\n".data);
-	else printf("t is false\n".data);
+	if t {
+		printf("t is true\n".data);
+	} else {
+		printf("t is false\n".data);
+	}
 
 	if b printf("b is true\n".data);
 
 	// this printf should not execute
 	if a printf("a is true\n".data);
+
+	var i = 0;
+
+	while i != 5 {
+		printf("while_test\n".data);
+		i = i + 1;
+	}
 }

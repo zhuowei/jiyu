@@ -97,7 +97,9 @@ Token Lexer::lex_token() {
         else if (result.string == to_string("false"))  result.type = Token::KEYWORD_FALSE;
         else if (result.string == to_string("if"))     result.type = Token::KEYWORD_IF;
         else if (result.string == to_string("else"))   result.type = Token::KEYWORD_ELSE;
-        
+        else if (result.string == to_string("while"))  result.type = Token::KEYWORD_WHILE;
+        else if (result.string == to_string("break"))  result.type = Token::KEYWORD_BREAK;
+        else if (result.string == to_string("continue")) result.type = Token::KEYWORD_CONTINUE;
         
         else if (result.string == to_string("temporary_c_vararg")) result.type = Token::TEMPORARY_KEYWORD_C_VARARGS;
         

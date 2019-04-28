@@ -241,6 +241,13 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
             // @Hack @Incomplete
             bin->type_info = bin->left->type_info;
             
+            if (bin->operator_type == Token::EQ_OP
+                || bin->operator_type == Token::NE_OP
+                || bin->operator_type == Token::LE_OP
+                || bin->operator_type == Token::GE_OP) {
+                bin->type_info = compiler->type_bool;
+            }
+            
             if (!types_match(bin->left->type_info, bin->right->type_info)) {
                 // @TODO report types
                 // @TODO attempt to implicit cast
@@ -423,6 +430,28 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
             if (_if->else_statement) typecheck_expression(_if->else_statement);
             
             return _if;
+        }
+        
+        case AST_WHILE: {
+            auto loop = static_cast<Ast_While *>(expression);
+            
+            typecheck_expression(loop->condition);
+            
+            auto cond = loop->condition;
+            if (cond->type_info->type != Ast_Type_Info::BOOL) {
+                // @TODO check for coercion to bool
+                compiler->report_error(cond, "'while' condition isn't of boolean type.\n");
+            }
+            
+            if (loop->statement) typecheck_expression(loop->statement);
+            
+            return loop;
+        }
+        
+        case AST_SCOPE: {
+            auto scope = static_cast<Ast_Scope *>(expression);
+            typecheck_scope(scope);
+            return scope;
         }
         
         case AST_CAST: {

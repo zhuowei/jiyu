@@ -36,6 +36,10 @@ struct Token {
         KEYWORD_IF,
         KEYWORD_ELSE,
         
+        KEYWORD_WHILE,
+        KEYWORD_BREAK,
+        KEYWORD_CONTINUE,
+        
         KEYWORD_VOID,
         KEYWORD_STRING,
         KEYWORD_INT,

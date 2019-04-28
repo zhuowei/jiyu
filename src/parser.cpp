@@ -578,6 +578,26 @@ Ast_Expression *Parser::parse_statement() {
         return _if;
     }
     
+    if (token->type == Token::KEYWORD_WHILE) {
+        Ast_While *loop = AST_NEW(Ast_While);
+        next_token();
+        
+        loop->condition = parse_expression();
+        
+        if (!loop->condition) {
+            compiler->report_error(loop, "'while' must be followed by an expression.\n");
+            return loop;
+        }
+        
+        loop->statement = parse_statement();
+        return loop;
+    }
+    
+    if (token->type == '{') {
+        Ast_Scope *scope = AST_NEW(Ast_Scope);
+        parse_scope(scope, true);
+        return scope;
+    }
     
     Ast_Expression *left = parse_expression();
     if (!left) return nullptr;
