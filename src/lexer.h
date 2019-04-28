@@ -6,26 +6,36 @@
 
 struct Token {
     enum Type {
-        DOT         = '.',
-        EQUALS      = '=',
-        SEMICOLON   = ';',
-        COLON       = ':',
-        LEFT_PAREN  = '(',
-        RIGHT_PAREN = ')',
-        STAR        = '*',
-        SLASH       = '/',
-        PERCENT     = '%',
-        PLUS        = '+',
-        MINUS       = '-',
-
+        DOT          = '.',
+        EQUALS       = '=',
+        SEMICOLON    = ';',
+        COLON        = ':',
+        LEFT_PAREN   = '(',
+        RIGHT_PAREN  = ')',
+        STAR         = '*',
+        SLASH        = '/',
+        PERCENT      = '%',
+        PLUS         = '+',
+        MINUS        = '-',
+        VERTICAL_BAR = '|',
+        CARET        = '^',
+        AMPERSAND    = '&',
+        
+        LEFT_ANGLE   = '<',
+        RIGHT_ANGLE  = '>',
+        
         END = 256,
         INTEGER,
         IDENTIFIER,
         STRING,
-
-
+        
+        
         KEYWORD_FUNC,
         KEYWORD_VAR,
+        
+        KEYWORD_IF,
+        KEYWORD_ELSE,
+        
         KEYWORD_VOID,
         KEYWORD_STRING,
         KEYWORD_INT,
@@ -40,24 +50,35 @@ struct Token {
         KEYWORD_INT64,
         KEYWORD_FLOAT,
         KEYWORD_DOUBLE,
-
+        KEYWORD_BOOL,
+        KEYWORD_TRUE,
+        KEYWORD_FALSE,
+        
         TEMPORARY_KEYWORD_C_VARARGS = 300,
-
-        ARROW,              // ->
+        
+        GE_OP,                // >=
+        LE_OP,                // <=
+        NE_OP,                // !=
+        EQ_OP,                // ==
+        AND_OP,               // &&
+        XOR_OP,               // ^^
+        OR_OP,                // ||
+        ARROW,                // ->
         DEREFERENCE_OR_SHIFT, // <<
-
+        RIGHT_SHIFT,          // >>
+        
         COMMENT,
     };
-
+    
     Type type;
     TextSpan text_span;
     String filename;
-
+    
     String string;
     s64 integer;
-
+    
     Token() {}
-
+    
     Token(Type type, TextSpan span) {
         this->type = type;
         this->text_span = span;
@@ -68,19 +89,19 @@ struct Compiler;
 
 struct Lexer {
     String filename;
-
+    
     string_length_type current_char = 0;
     String text;
-
+    
     Array<Token> tokens;
     Compiler *compiler;
-
+    
     Lexer(Compiler *compiler, String input_text, String filename) {
         this->text = input_text;
         this->filename = filename;
         this->compiler = compiler;
     }
-
+    
     Token make_token(Token::Type type, Span span);
     Token make_eof_token();
     Token make_string_token(Token::Type type, Span span, String string);

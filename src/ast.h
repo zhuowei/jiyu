@@ -20,6 +20,7 @@ enum Ast_Type {
     AST_FUNCTION_CALL,
     AST_DEREFERENCE,
     AST_CAST,
+    AST_IF,
 };
 
 struct Ast {
@@ -33,6 +34,7 @@ struct Ast_Type_Info {
     enum Type {
         UNINITIALIZED = 0,
         VOID,
+        BOOL,
         INTEGER,
         POINTER,
         
@@ -97,6 +99,15 @@ struct Ast_Function_Call : Ast_Expression {
     Array<Ast_Expression *> argument_list;
 };
 
+struct Ast_If : Ast_Expression {
+    Ast_If() { type = AST_IF; }
+    
+    Ast_Expression *condition = nullptr;
+    
+    Ast_Expression *then_statement = nullptr;
+    Ast_Expression *else_statement = nullptr;
+};
+
 struct Ast_Literal : Ast_Expression {
     Ast_Literal() { type = AST_LITERAL; }
     
@@ -104,10 +115,12 @@ struct Ast_Literal : Ast_Expression {
         INTEGER,
         STRING,
         FLOAT,
+        BOOL,
     };
     
     Type literal_type;
     
+    bool bool_value;
     s64 integer_value;
     double float_value;
     String string_value;

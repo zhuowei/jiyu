@@ -8,7 +8,7 @@ func test_func() -> void {
     var _int: int = 10;
     var intptr: *int;
 
-    var test_error = whatever;
+    // var test_error = whatever;
     
 
     // intptr = *_int;
@@ -27,7 +27,7 @@ func test_func() -> void {
 
     var n7: ***int;
     // THIS IS SUPPOSED TO FAIL
-    var n8 = *  << << n7;
+    // var n8 = *  << << n7;
 }
 
 func main (arg: int, arg2: int) -> void {
@@ -41,6 +41,22 @@ func main (arg: int, arg2: int) -> void {
    _write(1, my_string.data, 14);
 
    printf("Test %d\n".data, my_var);
+	test_bool();
    exit(11);
 }
 
+func test_bool() {
+	var v = true;
+	var t = false;
+	var a = false;
+
+	var b = v;
+
+	if t printf("t is true\n".data);
+	else printf("t is false\n".data);
+
+	if b printf("b is true\n".data);
+
+	// this printf should not execute
+	if a printf("a is true\n".data);
+}

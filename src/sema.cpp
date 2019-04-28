@@ -26,6 +26,11 @@ void print_type(Ast_Type_Info *info) {
         }
     }
     
+    if (info->type == Ast_Type_Info::BOOL) {
+        printf("bool");
+        return;
+    }
+    
     if (info->type == Ast_Type_Info::FLOAT) {
         if (info->size == 4) {
             printf("float");
@@ -305,6 +310,10 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
             
             if (lit->literal_type == Ast_Literal::STRING)  lit->type_info = compiler->type_string;
             
+            if (lit->literal_type == Ast_Literal::BOOL) lit->type_info = compiler->type_bool;
+            
+            assert(lit->type_info);
+            
             return lit;
         }
         
@@ -397,6 +406,23 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
                 deref->type_info = compiler->type_string_length;
             }
             return deref;
+        }
+        
+        case AST_IF: {
+            auto _if = static_cast<Ast_If *>(expression);
+            
+            typecheck_expression(_if->condition);
+            
+            auto cond = _if->condition;
+            if (cond->type_info->type != Ast_Type_Info::BOOL) {
+                // @TODO check for coercion to bool
+                compiler->report_error(cond, "'if' condition isn't of boolean type.\n");
+            }
+            
+            if (_if->then_statement) typecheck_expression(_if->then_statement);
+            if (_if->else_statement) typecheck_expression(_if->else_statement);
+            
+            return _if;
         }
         
         case AST_CAST: {

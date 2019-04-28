@@ -42,7 +42,7 @@ bool Parser::expect_and_eat(Token::Type type) {
 
 Ast_Identifier *Parser::parse_identifier() {
     if (!expect(Token::IDENTIFIER)) return nullptr;
-     Ast_Identifier *ident = AST_NEW(Ast_Identifier);
+    Ast_Identifier *ident = AST_NEW(Ast_Identifier);
     
     Token *token = next_token();
     String name = token->string;
@@ -68,6 +68,18 @@ Ast_Expression *Parser::parse_primary_expression() {
         Ast_Literal *lit = AST_NEW(Ast_Literal);
         lit->literal_type = Ast_Literal::INTEGER;
         lit->integer_value = token->integer;
+        
+        // @TODO mark for infer
+        
+        return lit;
+    }
+    
+    if (token->type == Token::KEYWORD_TRUE || token->type == Token::KEYWORD_FALSE) {
+        next_token();
+        
+        Ast_Literal *lit = AST_NEW(Ast_Literal);
+        lit->literal_type = Ast_Literal::BOOL;
+        lit->bool_value = (token->type == Token::KEYWORD_TRUE);
         
         // @TODO mark for infer
         
@@ -225,7 +237,6 @@ Ast_Expression *Parser::parse_additive_expression() {
             bin->operator_type = token->type;
             bin->left = sub_expression;
             
-            // @Cleanup this should be parse_unary_expression
             auto right = parse_multiplicative_expression();
             if (!right) {
                 compiler->report_error(token, "Malformed expression following '%c' operator.\n", token->type);
@@ -244,8 +255,292 @@ Ast_Expression *Parser::parse_additive_expression() {
     return sub_expression;
 }
 
+Ast_Expression *Parser::parse_shift_expression() {
+    auto sub_expression = parse_additive_expression();
+    
+    Token *token = peek_token();
+    while (token->type != Token::END) {
+        
+        if (token->type == Token::DEREFERENCE_OR_SHIFT
+            || token->type == Token::RIGHT_SHIFT) {
+            next_token();
+            
+            Ast_Binary_Expression *bin = AST_NEW(Ast_Binary_Expression);
+            bin->operator_type = token->type;
+            bin->left = sub_expression;
+            
+            auto right = parse_additive_expression();
+            if (!right) {
+                compiler->report_error(token, "Malformed expression following '%c' operator.\n", token->type);
+                return nullptr;
+            }
+            bin->right = right;
+            
+            sub_expression = bin;
+        } else {
+            break;
+        }
+        
+        token = peek_token();
+    }
+    
+    return sub_expression;
+}
+
+Ast_Expression *Parser::parse_relational_expression() {
+    auto sub_expression = parse_shift_expression();
+    
+    Token *token = peek_token();
+    while (token->type != Token::END) {
+        
+        if (token->type == Token::LEFT_ANGLE
+            || token->type == Token::RIGHT_ANGLE
+            || token->type == Token::LE_OP
+            || token->type == Token::GE_OP) {
+            next_token();
+            
+            Ast_Binary_Expression *bin = AST_NEW(Ast_Binary_Expression);
+            bin->operator_type = token->type;
+            bin->left = sub_expression;
+            
+            auto right = parse_shift_expression();
+            if (!right) {
+                compiler->report_error(token, "Malformed expression following '%c' operator.\n", token->type);
+                return nullptr;
+            }
+            bin->right = right;
+            
+            sub_expression = bin;
+        } else {
+            break;
+        }
+        
+        token = peek_token();
+    }
+    
+    return sub_expression;
+}
+
+Ast_Expression *Parser::parse_equality_expression() {
+    auto sub_expression = parse_relational_expression();
+    
+    Token *token = peek_token();
+    while (token->type != Token::END) {
+        
+        if (token->type == Token::EQ_OP
+            || token->type == Token::NE_OP) {
+            next_token();
+            
+            Ast_Binary_Expression *bin = AST_NEW(Ast_Binary_Expression);
+            bin->operator_type = token->type;
+            bin->left = sub_expression;
+            
+            auto right = parse_relational_expression();
+            if (!right) {
+                compiler->report_error(token, "Malformed expression following '%c' operator.\n", token->type);
+                return nullptr;
+            }
+            bin->right = right;
+            
+            sub_expression = bin;
+        } else {
+            break;
+        }
+        
+        token = peek_token();
+    }
+    
+    return sub_expression;
+}
+
+Ast_Expression *Parser::parse_and_expression() {
+    auto sub_expression = parse_equality_expression();
+    
+    Token *token = peek_token();
+    while (token->type != Token::END) {
+        
+        if (token->type == Token::AMPERSAND) {
+            next_token();
+            
+            Ast_Binary_Expression *bin = AST_NEW(Ast_Binary_Expression);
+            bin->operator_type = token->type;
+            bin->left = sub_expression;
+            
+            auto right = parse_equality_expression();
+            if (!right) {
+                compiler->report_error(token, "Malformed expression following '%c' operator.\n", token->type);
+                return nullptr;
+            }
+            bin->right = right;
+            
+            sub_expression = bin;
+        } else {
+            break;
+        }
+        
+        token = peek_token();
+    }
+    
+    return sub_expression;
+}
+
+Ast_Expression *Parser::parse_exclusive_or_expression() {
+    auto sub_expression = parse_and_expression();
+    
+    Token *token = peek_token();
+    while (token->type != Token::END) {
+        
+        if (token->type == Token::CARET) {
+            next_token();
+            
+            Ast_Binary_Expression *bin = AST_NEW(Ast_Binary_Expression);
+            bin->operator_type = token->type;
+            bin->left = sub_expression;
+            
+            auto right = parse_and_expression();
+            if (!right) {
+                compiler->report_error(token, "Malformed expression following '%c' operator.\n", token->type);
+                return nullptr;
+            }
+            bin->right = right;
+            
+            sub_expression = bin;
+        } else {
+            break;
+        }
+        
+        token = peek_token();
+    }
+    
+    return sub_expression;
+}
+
+Ast_Expression *Parser::parse_inclusive_or_expression() {
+    auto sub_expression = parse_exclusive_or_expression();
+    
+    Token *token = peek_token();
+    while (token->type != Token::END) {
+        
+        if (token->type == Token::VERTICAL_BAR) {
+            next_token();
+            
+            Ast_Binary_Expression *bin = AST_NEW(Ast_Binary_Expression);
+            bin->operator_type = token->type;
+            bin->left = sub_expression;
+            
+            auto right = parse_exclusive_or_expression();
+            if (!right) {
+                compiler->report_error(token, "Malformed expression following '%c' operator.\n", token->type);
+                return nullptr;
+            }
+            bin->right = right;
+            
+            sub_expression = bin;
+        } else {
+            break;
+        }
+        
+        token = peek_token();
+    }
+    
+    return sub_expression;
+}
+
+Ast_Expression *Parser::parse_logical_and_expression() {
+    auto sub_expression = parse_inclusive_or_expression();
+    
+    Token *token = peek_token();
+    while (token->type != Token::END) {
+        
+        if (token->type == Token::AND_OP) {
+            next_token();
+            
+            Ast_Binary_Expression *bin = AST_NEW(Ast_Binary_Expression);
+            bin->operator_type = token->type;
+            bin->left = sub_expression;
+            
+            auto right = parse_inclusive_or_expression();
+            if (!right) {
+                compiler->report_error(token, "Malformed expression following '%c' operator.\n", token->type);
+                return nullptr;
+            }
+            bin->right = right;
+            
+            sub_expression = bin;
+        } else {
+            break;
+        }
+        
+        token = peek_token();
+    }
+    
+    return sub_expression;
+}
+
+Ast_Expression *Parser::parse_logical_xor_expression() {
+    auto sub_expression = parse_logical_and_expression();
+    
+    Token *token = peek_token();
+    while (token->type != Token::END) {
+        
+        if (token->type == Token::XOR_OP) {
+            next_token();
+            
+            Ast_Binary_Expression *bin = AST_NEW(Ast_Binary_Expression);
+            bin->operator_type = token->type;
+            bin->left = sub_expression;
+            
+            auto right = parse_logical_and_expression();
+            if (!right) {
+                compiler->report_error(token, "Malformed expression following '%c' operator.\n", token->type);
+                return nullptr;
+            }
+            bin->right = right;
+            
+            sub_expression = bin;
+        } else {
+            break;
+        }
+        
+        token = peek_token();
+    }
+    
+    return sub_expression;
+}
+
+Ast_Expression *Parser::parse_logical_or_expression() {
+    auto sub_expression = parse_logical_xor_expression();
+    
+    Token *token = peek_token();
+    while (token->type != Token::END) {
+        
+        if (token->type == Token::OR_OP) {
+            next_token();
+            
+            Ast_Binary_Expression *bin = AST_NEW(Ast_Binary_Expression);
+            bin->operator_type = token->type;
+            bin->left = sub_expression;
+            
+            auto right = parse_logical_xor_expression();
+            if (!right) {
+                compiler->report_error(token, "Malformed expression following '%c' operator.\n", token->type);
+                return nullptr;
+            }
+            bin->right = right;
+            
+            sub_expression = bin;
+        } else {
+            break;
+        }
+        
+        token = peek_token();
+    }
+    
+    return sub_expression;
+}
+
 Ast_Expression *Parser::parse_expression() {
-    return parse_additive_expression();
+    return parse_logical_or_expression();
 }
 
 Ast_Expression *Parser::parse_statement() {
@@ -259,6 +554,28 @@ Ast_Expression *Parser::parse_statement() {
         auto var = parse_variable_declaration(true);
         if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
         return var;
+    }
+    
+    if (token->type == Token::KEYWORD_IF) {
+        Ast_If *_if = AST_NEW(Ast_If);
+        next_token();
+        
+        _if->condition = parse_expression();
+        if (!_if->condition) {
+            compiler->report_error(_if, "'if' must be followed by an expression.\n");
+            return _if;
+        }
+        
+        _if->then_statement = parse_statement();
+        
+        token = peek_token();
+        if (token->type == Token::KEYWORD_ELSE) {
+            next_token();
+            
+            _if->else_statement = parse_statement();
+        }
+        
+        return _if;
     }
     
     
@@ -375,6 +692,8 @@ Ast_Type_Info *Parser::parse_type_info() {
         case Token::KEYWORD_STRING: next_token(); return compiler->type_string;
         
         case Token::KEYWORD_VOID:   next_token(); return compiler->type_void;
+        
+        case Token::KEYWORD_BOOL:   next_token(); return compiler->type_bool;
     }
     
     if (token->type == Token::STAR) {
@@ -472,7 +791,7 @@ Ast_Function *Parser::parse_function() {
     }
     
     
-    if (token->type == '{') {
+    if (peek_token()->type == '{') {
         Ast_Scope *scope = AST_NEW(Ast_Scope);
         parse_scope(scope, true);
         

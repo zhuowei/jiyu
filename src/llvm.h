@@ -37,6 +37,7 @@ struct LLVM_Generator {
     llvm::IRBuilder<> *irb;
     
     llvm::Type *type_void;
+    llvm::Type *type_i1;
     llvm::Type *type_i8;
     llvm::Type *type_i16;
     llvm::Type *type_i32;

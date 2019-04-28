@@ -54,6 +54,9 @@ void Compiler::init() {
     type_void = new Ast_Type_Info();
     type_void->type = Ast_Type_Info::VOID;
     
+    type_bool = new Ast_Type_Info();
+    type_bool->type = Ast_Type_Info::BOOL;
+    
     type_int8  = make_int_type(true, 1);
     type_int16 = make_int_type(true, 2);
     type_int32 = make_int_type(true, 4);
@@ -112,7 +115,7 @@ void Compiler::report_error_valist(String filename, String source, Span error_lo
     
     assert(start_char >= 0 && end_char >= 0);
     assert(num_lines >= 0);
-
+    
     // printf("start char: %d\n", start_char);
     // printf("end   char: %d\n", end_char);
     // printf("Span: %d, %d\n", error_location.start, error_location.start + error_location.length - 1);
@@ -120,13 +123,13 @@ void Compiler::report_error_valist(String filename, String source, Span error_lo
     String s;
     s.data = source.data + start_char;
     s.length = end_char - start_char;
-
+    
     string_length_type char_current = start_char;
     for (string_length_type i = 0; i < num_lines; ++i) {
         String temp = s;
         
         printf(">    ");
-
+        
         while (s.length > 0 && s[0] != '\n') {
             // printf("char_current: %d\n", char_current);
             if (char_current == error_location.start) {
@@ -134,12 +137,12 @@ void Compiler::report_error_valist(String filename, String source, Span error_lo
             } else if (char_current == (error_location.start + error_location.length)) {
                 printf(TTY_RESET);
             }
-
+            
             putchar(s[0]);
             advance(&s);
             char_current++;
         }
-
+        
         char_current++; // count newline character
         if (char_current == (error_location.start + error_location.length)) {
             printf(TTY_RESET);
@@ -149,7 +152,7 @@ void Compiler::report_error_valist(String filename, String source, Span error_lo
         
         s.data = temp.data + temp.length + 1;
         s.length = (end_char - start_char) - (temp.length + 1);
-
+        
         putchar('\n');
     }
     

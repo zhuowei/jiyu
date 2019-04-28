@@ -62,6 +62,7 @@ struct Compiler {
     Ast_Scope *global_scope;
     
     Ast_Type_Info *type_void;
+    Ast_Type_Info *type_bool;
     Ast_Type_Info *type_int8;
     Ast_Type_Info *type_int16;
     Ast_Type_Info *type_int32;

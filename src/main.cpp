@@ -64,9 +64,9 @@ int main(int argc, char **argv) {
     Parser *parser = new Parser(lexer);
     compiler.parser = parser;
     
+    /*
     printf("File contents: %.*s\n", source.length, source.data);
     
-    /*
     printf("Tokens:\n");
     
     printf("TOKEN COUNT: %d\n", lexer->tokens.count);

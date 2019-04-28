@@ -16,4 +16,6 @@ func main() -> void {
 
     var _float: float;
     var _double: double;
+
+	var _bool: bool;
 }
