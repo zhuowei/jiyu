@@ -103,6 +103,8 @@ Token Lexer::lex_token() {
         else if (result.string == to_string("break"))  result.type = Token::KEYWORD_BREAK;
         else if (result.string == to_string("continue")) result.type = Token::KEYWORD_CONTINUE;
         
+        else if (result.string == to_string("return")) result.type = Token::KEYWORD_RETURN;
+        
         // @Cleanup we should probably have a "tag" token
         else if (result.string == to_string("@c_function")) result.type = Token::TAG_C_FUNCTION;
         

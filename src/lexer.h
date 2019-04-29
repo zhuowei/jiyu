@@ -40,6 +40,8 @@ struct Token {
         KEYWORD_BREAK,
         KEYWORD_CONTINUE,
         
+        KEYWORD_RETURN,
+        
         KEYWORD_VOID,
         KEYWORD_STRING,
         KEYWORD_INT,

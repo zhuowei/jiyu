@@ -11,7 +11,7 @@ func @c_function glfwPollEvents();
 func @c_function glClearColor(r: float, g: float, b: float, a: float);
 func @c_function glClear(bits: uint32);
 
-func to_string(input: *uint8) {
+func to_string(input: *uint8) -> string {
 	var s: string;
 	s.data = input;
 	// zs.coun

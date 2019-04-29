@@ -171,17 +171,10 @@ FunctionType *LLVM_Generator::create_function_type(Ast_Function *function) {
         arguments.add(type);
     }
     
-    if (function->is_c_function) {
-        if (function->returns.count > 0) {
-            return_type = get_type(function->returns[0]->type_info);
-        }
-    } else {
-        for (auto &ret : function->returns) {
-            if (ret->type_info == compiler->type_void) continue;
-            Type *type = get_type(ret->type_info)->getPointerTo();
-            arguments.add(type);
-        }
+    if (function->return_decl) {
+        return_type = get_type(function->return_decl->type_info);
     }
+    
     return FunctionType::get(return_type, ArrayRef<Type *>(arguments.data, arguments.count), function->is_c_varargs);
 }
 
@@ -516,33 +509,33 @@ void LLVM_Generator::emit_function(Ast_Function *function) {
     
     Function *func = get_or_create_function(function);
     if (!function->scope) return; // forward declaration of external thing
-
+    
     // create entry block
     BasicBlock *entry = BasicBlock::Create(*llvm_context, "entry", func);
     BasicBlock *starting_block = BasicBlock::Create(*llvm_context, "start", func);
-
+    
     
     irb->SetInsertPoint(entry);
-
+    
     auto arg_it = func->arg_begin();
     for (array_count_type i = 0; i < function->arguments.count; ++i) {
         auto a  = arg_it;
-
+        
         auto decl = function->arguments[i];
         Value *alloca = irb->CreateAlloca(get_type(decl->type_info));
         
         if (decl->identifier) {
             alloca->setName(string_ref(decl->identifier->name->name));
         }
-
+        
         irb->CreateStore(a, alloca);
         
         assert(get_value_for_decl(decl) == nullptr);
         decl_value_map.add(MakeTuple(decl, alloca));
-
+        
         arg_it++;
     }
-
+    
     irb->CreateBr(starting_block);
     
     irb->SetInsertPoint(starting_block);

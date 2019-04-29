@@ -382,10 +382,8 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
                 call->argument_list[i] = value;
             }
             
-            if (function->returns.count) {
-                assert(function->returns.count == 1 && "Internal error: support for multiple return values.");
-                
-                call->type_info = function->returns[0]->type_info;
+            if (function->return_decl) {
+                call->type_info = function->return_decl->type_info;
             } else {
                 call->type_info = compiler->type_void;
             }
@@ -485,35 +483,41 @@ void Sema::typecheck_function(Ast_Function *function) {
         typecheck_expression(a);
     }
     
-    for (auto &r : function->returns) {
-        typecheck_expression(r);
-    }
+    if (function->return_decl) typecheck_expression(function->return_decl);
     
     if (function->is_c_varargs && !function->is_c_function) {
         compiler->report_error(function, "Function must be tagged @c_function in order to use temporary_c_vararg.\n");
     }
     
     if (function->is_c_function) {
+        // @TODO error if a C function is declared returning a tuple
+        /*
         if (function->returns.count > 1) {
             compiler->report_error(function, "Function tagged @c_function may only have 1 return value.\n");
         }
+*/
+    }
+    
+    if (function->is_c_function && function->scope) {
+        compiler->report_error(function, "Function marked @c_function cannot have a body.\n");
+        return;
     }
     
     if (function->scope) {
         // I dont yet know if this is the best way to handle this, but we create a stand-in scope with
         // parameter declarations so the typechecker can find semantic relationships for the function
         // parameters. -josh 28 April 2019
-
+        
         Ast_Scope *scope = new Ast_Scope(); // @Leak
         scope->text_span = function->scope->text_span;
-
+        
         // @TODO should we add the parameters as statements too?
         for (auto &a : function->arguments) {
             scope->declarations.add(a);
         }
-
+        
         scope->statements.add(function->scope);
-
+        
         typecheck_scope(scope);
         // typecheck_scope(function->scope);
     }

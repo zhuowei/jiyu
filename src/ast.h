@@ -22,6 +22,7 @@ enum Ast_Type {
     AST_CAST,
     AST_IF,
     AST_WHILE,
+    AST_RETURN,
 };
 
 struct Ast {
@@ -116,6 +117,12 @@ struct Ast_While : Ast_Expression {
     Ast_Expression *statement = nullptr;
 };
 
+struct Ast_Return : Ast_Expression {
+    Ast_Return() { type = AST_RETURN; }
+    
+    Ast_Expression *expression = nullptr;
+};
+
 struct Ast_Literal : Ast_Expression {
     Ast_Literal() { type = AST_LITERAL; }
     
@@ -145,6 +152,9 @@ struct Ast_Scope : Ast_Expression {
     Ast_Scope *parent = nullptr;
     Array<Ast_Expression *> statements;
     Array<Ast_Expression *> declarations; // really should only contain Ast_Declaration and Ast_Function
+    
+    Ast_Function   *owning_function = nullptr;
+    Ast_Expression *owning_statement = nullptr;
 };
 
 struct Ast_Function : Ast_Expression {
@@ -153,7 +163,7 @@ struct Ast_Function : Ast_Expression {
     Ast_Identifier *identifier;
     
     Array<Ast_Declaration *> arguments;
-    Array<Ast_Declaration *> returns;
+    Ast_Declaration *return_decl = nullptr;
     
     Ast_Scope *scope = nullptr;
     

@@ -593,6 +593,16 @@ Ast_Expression *Parser::parse_statement() {
         return loop;
     }
     
+    if (token->type == Token::KEYWORD_RETURN) {
+        Ast_Return *ret = AST_NEW(Ast_Return);
+        next_token();
+        
+        ret->expression = parse_expression();
+        
+        if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
+        return ret;
+    }
+    
     if (token->type == '{') {
         Ast_Scope *scope = AST_NEW(Ast_Scope);
         parse_scope(scope, true);
@@ -788,6 +798,7 @@ Ast_Function *Parser::parse_function() {
             
             if (token->type == '{' || token->type == Token::SEMICOLON) break;
             
+            // @TODO parse tuple, we probably dont need to be in a loop here
             Ast_Identifier *ident = nullptr;
             if (token->type == Token::IDENTIFIER) {
                 ident = parse_identifier();
@@ -803,7 +814,7 @@ Ast_Function *Parser::parse_function() {
             decl->identifier = ident;
             decl->type_info = type_info;
             
-            function->returns.add(decl);
+            function->return_decl = decl;
             
             found_return_type = true;
             
@@ -818,12 +829,8 @@ Ast_Function *Parser::parse_function() {
     
     
     if (peek_token()->type == '{') {
-        if (function->is_c_function) {
-            compiler->report_error(function, "Function marked @c_function cannot be succeeded by a function body.\n");
-        }
         Ast_Scope *scope = AST_NEW(Ast_Scope);
         parse_scope(scope, true);
-        
         function->scope = scope;
     } else {
         if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
