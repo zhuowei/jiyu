@@ -25,6 +25,8 @@ struct Parser {
     bool expect(Token::Type type);
     bool expect_and_eat(Token::Type type);
     
+    Ast_Type_Instantiation *wrap_primitive_type(Ast_Type_Info *info);
+    
     Ast_Identifier *parse_identifier();
     Ast_Expression *parse_primary_expression();
     Ast_Expression *parse_postfix_expression();
@@ -45,7 +47,7 @@ struct Parser {
     Ast_Expression *parse_expression();
     Ast_Expression *parse_statement();
     
-    Ast_Type_Info *parse_type_info();
+    Ast_Type_Instantiation *parse_type_inst();
     
     Ast_Declaration *parse_variable_declaration(bool expect_var_keyword);
     void parse_scope(Ast_Scope *scope, bool requires_braces);

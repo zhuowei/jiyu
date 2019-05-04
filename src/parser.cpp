@@ -202,7 +202,7 @@ Ast_Expression *Parser::parse_unary_expression() {
         
         if (!expect_and_eat((Token::Type) '(')) return nullptr;
         
-        cast->target_type_info = parse_type_info();
+        cast->target_type_inst = parse_type_inst();
         
         if (!expect_and_eat((Token::Type) ')')) return nullptr;
         
@@ -710,11 +710,11 @@ Ast_Declaration *Parser::parse_variable_declaration(bool expect_var_keyword) {
     if (token->type == Token::COLON) {
         next_token();
         
-        Ast_Type_Info *type_info = parse_type_info();
-        if (!type_info) return nullptr;
+        Ast_Type_Instantiation *type_inst = parse_type_inst();
+        if (!type_inst) return nullptr;
         
         
-        decl->type_info = type_info;
+        decl->type_inst = type_inst;
     }
     
     token = peek_token();
@@ -727,7 +727,7 @@ Ast_Declaration *Parser::parse_variable_declaration(bool expect_var_keyword) {
         decl->initializer_expression = expression;
     }
     
-    if (!decl->initializer_expression && !decl->type_info) {
+    if (!decl->initializer_expression && !decl->type_inst) {
         // @TODO maybe this should be moved to semantic analysis
         compiler->report_error(ident_token, "Declared variable must be declared with a type or be initialized.\n");
         return nullptr;
@@ -737,42 +737,63 @@ Ast_Declaration *Parser::parse_variable_declaration(bool expect_var_keyword) {
     return decl;
 }
 
-Ast_Type_Info *Parser::parse_type_info() {
+
+Ast_Type_Instantiation *Parser::wrap_primitive_type(Ast_Type_Info *info) {
+    assert(info->type == Ast_Type_Info::VOID    ||
+           info->type == Ast_Type_Info::BOOL    ||
+           info->type == Ast_Type_Info::INTEGER ||
+           info->type == Ast_Type_Info::FLOAT   ||
+           info->type == Ast_Type_Info::STRING);
+    
+    auto type_inst = AST_NEW(Ast_Type_Instantiation);
+    type_inst->builtin_primitive = info;
+    return type_inst;
+}
+
+Ast_Type_Instantiation *Parser::parse_type_inst() {
     Token *token = peek_token();
     
+    Ast_Type_Info *builtin_primitive = nullptr;
     switch (token->type) {
-        case Token::KEYWORD_INT:    next_token(); return compiler->type_int32;  // @IntegerSize ??
-        case Token::KEYWORD_UINT:   next_token(); return compiler->type_uint32; // @IntegerSize ??
+        case Token::KEYWORD_INT:    builtin_primitive = compiler->type_int32; break;  // @IntegerSize ??
+        case Token::KEYWORD_UINT:   builtin_primitive = compiler->type_uint32; break; // @IntegerSize ??
         
-        case Token::KEYWORD_INT8:   next_token(); return compiler->type_int8;
-        case Token::KEYWORD_INT16:  next_token(); return compiler->type_int16;
-        case Token::KEYWORD_INT32:  next_token(); return compiler->type_int32;
-        case Token::KEYWORD_INT64:  next_token(); return compiler->type_int64;
+        case Token::KEYWORD_INT8:   builtin_primitive = compiler->type_int8; break;
+        case Token::KEYWORD_INT16:  builtin_primitive = compiler->type_int16; break;
+        case Token::KEYWORD_INT32:  builtin_primitive = compiler->type_int32; break;
+        case Token::KEYWORD_INT64:  builtin_primitive = compiler->type_int64; break;
         
-        case Token::KEYWORD_UINT8:  next_token(); return compiler->type_uint8;
-        case Token::KEYWORD_UINT16: next_token(); return compiler->type_uint16;
-        case Token::KEYWORD_UINT32: next_token(); return compiler->type_uint32;
-        case Token::KEYWORD_UINT64: next_token(); return compiler->type_uint64;
+        case Token::KEYWORD_UINT8:  builtin_primitive = compiler->type_uint8; break;
+        case Token::KEYWORD_UINT16: builtin_primitive = compiler->type_uint16; break;
+        case Token::KEYWORD_UINT32: builtin_primitive = compiler->type_uint32; break;
+        case Token::KEYWORD_UINT64: builtin_primitive = compiler->type_uint64; break;
         
-        case Token::KEYWORD_FLOAT:  next_token(); return compiler->type_float32;
-        case Token::KEYWORD_DOUBLE: next_token(); return compiler->type_float64;
+        case Token::KEYWORD_FLOAT:  builtin_primitive = compiler->type_float32; break;
+        case Token::KEYWORD_DOUBLE: builtin_primitive = compiler->type_float64; break;
         
-        case Token::KEYWORD_STRING: next_token(); return compiler->type_string;
+        case Token::KEYWORD_STRING: builtin_primitive = compiler->type_string; break;
         
-        case Token::KEYWORD_VOID:   next_token(); return compiler->type_void;
+        case Token::KEYWORD_VOID:   builtin_primitive = compiler->type_void; break;
         
-        case Token::KEYWORD_BOOL:   next_token(); return compiler->type_bool;
+        case Token::KEYWORD_BOOL:   builtin_primitive = compiler->type_bool; break;
+    }
+    
+    if (builtin_primitive) {
+        next_token();
+        return wrap_primitive_type(builtin_primitive);
     }
     
     if (token->type == Token::STAR) {
         next_token();
-        auto pointee = parse_type_info();
+        auto pointee = parse_type_inst();
         if (!pointee) {
             compiler->report_error(token, "Couldn't parse pointer element type.\n");
             return nullptr;
         }
         
-        return make_pointer_type(pointee);
+        Ast_Type_Instantiation *type_inst = AST_NEW(Ast_Type_Instantiation);
+        type_inst->pointer_to = pointee;
+        return type_inst;
     }
     
     return nullptr;
@@ -848,12 +869,12 @@ Ast_Function *Parser::parse_function() {
                 if (!expect_and_eat(Token::COLON)) return nullptr;
             }
             
-            Ast_Type_Info *type_info = parse_type_info();
-            if (!type_info) return nullptr;
+            Ast_Type_Instantiation *type_inst = parse_type_inst();
+            if (!type_inst) return nullptr;
             
             Ast_Declaration *decl = AST_NEW(Ast_Declaration);
             decl->identifier = ident;
-            decl->type_info = type_info;
+            decl->type_inst = type_inst;
             
             function->return_decl = decl;
             

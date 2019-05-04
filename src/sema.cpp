@@ -65,7 +65,7 @@ Ast_Expression *cast_int_to_int(Ast_Expression *expr, Ast_Type_Info *target) {
     
     Ast_Cast *cast = new Ast_Cast();
     cast->expression = expr;
-    cast->target_type_info = target;
+    // cast->target_type_inst = nullptr;
     cast->type_info = target;
     return cast;
 }
@@ -80,7 +80,7 @@ Ast_Expression *cast_float_to_float(Ast_Expression *expr, Ast_Type_Info *target)
     
     Ast_Cast *cast = new Ast_Cast();
     cast->expression = expr;
-    cast->target_type_info = target;
+    // cast->target_type_info = nullptr;
     cast->type_info = target;
     return cast;
 }
@@ -267,7 +267,9 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 // decl->substitution = decl->initializer_expression;
             }
             
-            if (!decl->type_info) {
+            if (decl->type_inst) {
+                decl->type_info = resolve_type_inst(decl->type_inst); 
+            } else {
                 assert(decl->initializer_expression);
                 
                 decl->type_info = decl->initializer_expression->type_info;
@@ -597,7 +599,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             if (compiler->errors_reported) return;
             
             auto expr_type = get_type_info(cast->expression);
-            auto target    = cast->target_type_info;
+            auto target    = resolve_type_inst(cast->target_type_inst);
             
             assert(target);
             
@@ -614,6 +616,24 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
     
     assert(false);
     return;
+}
+
+Ast_Type_Info *Sema::resolve_type_inst(Ast_Type_Instantiation *type_inst) {
+    if (type_inst->pointer_to) {
+        auto pointee = resolve_type_inst(type_inst->pointer_to);
+        return make_pointer_type(pointee);
+    }
+    
+    if (type_inst->builtin_primitive) {
+        return type_inst->builtin_primitive;
+    }
+    
+    if (type_inst->typename_identifier) {
+        // @TODO
+    }
+    
+    assert(false);
+    return nullptr;
 }
 
 Ast_Scope *Sema::get_current_scope() {

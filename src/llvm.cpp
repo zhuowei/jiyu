@@ -403,7 +403,7 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             Value *value = emit_expression(cast->expression);
             
             auto src = get_type_info(cast->expression);
-            auto dst = cast->target_type_info;
+            auto dst = cast->type_info;
             
             auto src_type = get_type(src);
             auto dst_type = get_type(dst);

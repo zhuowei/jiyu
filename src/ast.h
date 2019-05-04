@@ -23,6 +23,7 @@ enum Ast_Type {
     AST_IF,
     AST_WHILE,
     AST_RETURN,
+    AST_TYPE_INSTANTIATION,
 };
 
 struct Ast {
@@ -35,22 +36,30 @@ struct Ast {
 struct Ast_Type_Info {
     enum Type {
         UNINITIALIZED = 0,
+        
+        // primitves
         VOID,
         BOOL,
         INTEGER,
-        POINTER,
-        
         FLOAT,
         STRING,
-        STRUCT,
+        
+        // non-primitves
+        POINTER,
+        ALIAS,
         FUNCTION,
+        
+        // User defined (mostly)
+        STRUCT,
     };
     
     Type type = UNINITIALIZED;
     
+    
     bool is_signed = false; // for INTEGER
     
     Ast_Type_Info *pointer_to = nullptr;
+    Ast_Type_Info *alias_of   = nullptr;
     
     // Ast_Function *function;
     
@@ -62,6 +71,18 @@ struct Ast_Expression : Ast {
     
     Ast_Expression *substitution = nullptr;
 };
+
+struct Ast_Type_Info;
+struct Ast_Identifier;
+
+struct Ast_Type_Instantiation : Ast_Expression {
+    Ast_Type_Instantiation() { type = AST_TYPE_INSTANTIATION; }
+    
+    Ast_Type_Info *builtin_primitive = nullptr;
+    Ast_Type_Instantiation *pointer_to = nullptr;
+    Ast_Identifier *typename_identifier = nullptr;
+};
+
 
 struct Ast_Unary_Expression : Ast_Expression {
     Ast_Unary_Expression() { type = AST_UNARY_EXPRESSION; }
@@ -148,6 +169,8 @@ struct Ast_Declaration : Ast_Expression {
     Ast_Identifier *identifier = nullptr;
     Ast_Expression *initializer_expression = nullptr;
     
+    Ast_Type_Instantiation *type_inst = nullptr;
+    
     bool is_let = false;
     bool is_function_argument = false;
 };
@@ -180,7 +203,7 @@ struct Ast_Function : Ast_Expression {
 
 struct Ast_Cast : Ast_Expression {
     Ast_Cast() { type = AST_CAST; }
-    Ast_Type_Info *target_type_info = nullptr;
+    Ast_Type_Instantiation *target_type_inst = nullptr;
     Ast_Expression *expression = nullptr;
 };
 
