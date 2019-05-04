@@ -584,6 +584,16 @@ Ast_Expression *Parser::parse_statement() {
         return var;
     }
     
+    if (token->type == Token::KEYWORD_LET) {
+        next_token();
+        
+        auto let = parse_variable_declaration(false);
+        if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
+        
+        let->is_let = true;
+        return let;
+    }
+    
     if (token->type == Token::KEYWORD_IF) {
         Ast_If *_if = AST_NEW(Ast_If);
         next_token();
@@ -808,7 +818,10 @@ Ast_Function *Parser::parse_function() {
         }
         
         Ast_Declaration *decl = parse_variable_declaration(false);
-        if (decl) function->arguments.add(decl);
+        if (decl) {
+            decl->is_let = true;
+            function->arguments.add(decl);
+        }
         
         if (compiler->errors_reported) return nullptr;
         

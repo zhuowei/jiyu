@@ -345,6 +345,10 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             assert(ident->resolved_declaration->type == AST_DECLARATION);
             auto decl = static_cast<Ast_Declaration *>(ident->resolved_declaration);
             
+            if (decl->is_let && !decl->is_function_argument) {
+                return emit_expression(decl->initializer_expression);
+            }
+            
             auto value = get_value_for_decl(decl);
             
             if (!is_lvalue) return irb->CreateLoad(value);

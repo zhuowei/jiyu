@@ -140,4 +140,11 @@ bool is_valid_primitive_cast(Ast_Type_Info *target, Ast_Type_Info *source) {
     return false;
 }
 
+inline
+bool resolves_to_literal_value(Ast_Expression *expr) {
+    while (expr->substitution) expr = expr->substitution;
+    
+    return expr->type == AST_LITERAL;
+}
+
 #endif

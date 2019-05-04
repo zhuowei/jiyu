@@ -1,4 +1,8 @@
 
+// C library
+func @c_function printf(fmt: *uint8, temporary_c_vararg);
+
+// GLFW
 func @c_function glfwInit();
 func @c_function glfwCreateWindow(width: int32, height: int32, title: *uint8, unk: int64, unk1: int64) -> *void;
 func @c_function glfwTerminate();
@@ -7,11 +11,9 @@ func @c_function glfwWindowShouldClose(window: *void) -> bool;
 func @c_function glfwSwapBuffers(window: *void);
 func @c_function glfwPollEvents();
 
-
+// OpenGL
 func @c_function glClearColor(r: float, g: float, b: float, a: float);
 func @c_function glClear(bits: uint32);
-
-func @c_function printf(fmt: *uint8, temporary_c_vararg);
 
 func c_style_strlen(input: *uint8) -> int64 {
 	var cursor = input;
@@ -29,6 +31,8 @@ func to_string(input: *uint8) -> string {
 	return s;
 }
 
+let GL_COLOR_BUFFER_BIT = 16384;
+
 func main() {
 	var window: *void;
 
@@ -42,7 +46,7 @@ func main() {
 
 	while glfwWindowShouldClose(window) == false {
 		glClearColor(0, 1, 0, 1);
-		glClear(16384); // GL_COLOR_BUFFER_BIT
+		glClear(GL_COLOR_BUFFER_BIT);
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();

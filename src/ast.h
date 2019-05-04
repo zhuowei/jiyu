@@ -147,6 +147,9 @@ struct Ast_Declaration : Ast_Expression {
     Ast_Declaration() { type = AST_DECLARATION; }
     Ast_Identifier *identifier = nullptr;
     Ast_Expression *initializer_expression = nullptr;
+    
+    bool is_let = false;
+    bool is_function_argument = false;
 };
 
 struct Ast_Function;

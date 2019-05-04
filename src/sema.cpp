@@ -91,11 +91,21 @@ bool expression_is_lvalue(Ast_Expression *expression, bool parent_wants_lvalue) 
     switch (expression->type) {
         case AST_IDENTIFIER: {
             auto ident = static_cast<Ast_Identifier *>(expression);
-            auto decl = ident->resolved_declaration;
+            auto decl = static_cast<Ast_Declaration *>(ident->resolved_declaration);
             
-            // @Incomplete return false for constant declarations
+            if (decl) assert(decl->type == AST_DECLARATION);
+            
+            if (decl && decl->is_let) {
+                return false;
+            }
             
             return decl != nullptr;
+        }
+        
+        case AST_DEREFERENCE: {
+            auto deref = static_cast<Ast_Dereference *>(expression);
+            
+            return expression_is_lvalue(deref->left, parent_wants_lvalue);
         }
         
         case AST_UNARY_EXPRESSION: {
@@ -245,6 +255,18 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             // @TODO prevent use of a declaration in it's initializer
             if (decl->initializer_expression) typecheck_expression(decl->initializer_expression, get_type_info(decl));
             
+            if (decl->is_let && !decl->is_function_argument && !decl->initializer_expression) {
+                compiler->report_error(decl, "let constant must be initialized by an expression.\n");
+            }
+            
+            if (decl->is_let && decl->initializer_expression) {
+                if (!resolves_to_literal_value(decl->initializer_expression)) {
+                    compiler->report_error(decl->initializer_expression, "let constant can only be initialized by a literal expression.\n");
+                }
+                
+                // decl->substitution = decl->initializer_expression;
+            }
+            
             if (!decl->type_info) {
                 assert(decl->initializer_expression);
                 
@@ -278,6 +300,13 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             bin->type_info = get_type_info(bin->left);
             
             assert(bin->type_info);
+            
+            
+            if (bin->operator_type == Token::EQUALS) {
+                if (!expression_is_lvalue(bin->left, true)) {
+                    compiler->report_error(bin->left, "expression on lhs of '=' must be an lvalue.\n");
+                }
+            }
             
             if (bin->operator_type == Token::EQ_OP
                 || bin->operator_type == Token::NE_OP
@@ -599,6 +628,7 @@ void Sema::typecheck_function(Ast_Function *function) {
     // @Incomplete set type info so we don't come through here multiple times
     
     for (auto &a : function->arguments) {
+        a->is_function_argument = true;
         typecheck_expression(a);
     }
     
@@ -631,7 +661,7 @@ void Sema::typecheck_function(Ast_Function *function) {
         scope->text_span = function->scope->text_span;
         
         // @TODO should we add the parameters as statements too?
-        for (auto &a : function->arguments) {
+        for (auto a : function->arguments) {
             scope->declarations.add(a);
         }
         
