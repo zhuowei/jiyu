@@ -59,6 +59,8 @@ struct Ast_Type_Info {
 
 struct Ast_Expression : Ast {
     Ast_Type_Info *type_info = nullptr;
+    
+    Ast_Expression *substitution = nullptr;
 };
 
 struct Ast_Unary_Expression : Ast_Expression {
@@ -147,6 +149,8 @@ struct Ast_Declaration : Ast_Expression {
     Ast_Expression *initializer_expression = nullptr;
 };
 
+struct Ast_Function;
+
 struct Ast_Scope : Ast_Expression {
     Ast_Scope() { type = AST_SCOPE; }
     Ast_Scope *parent = nullptr;
@@ -173,6 +177,7 @@ struct Ast_Function : Ast_Expression {
 
 struct Ast_Cast : Ast_Expression {
     Ast_Cast() { type = AST_CAST; }
+    Ast_Type_Info *target_type_info = nullptr;
     Ast_Expression *expression = nullptr;
 };
 

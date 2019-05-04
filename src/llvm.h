@@ -48,6 +48,8 @@ struct LLVM_Generator {
     llvm::StructType *type_string;
     llvm::Type *type_string_length;
     
+    llvm::Type *type_intptr;
+    
     Array<Tuple<Ast_Declaration *, llvm::Value *>> decl_value_map;
     
     

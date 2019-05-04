@@ -26,7 +26,7 @@ func test_func() -> void {
 
     var n7: ***int;
     // THIS IS SUPPOSED TO FAIL
-    // var n8 = *  << << n7;
+    var n8 = *  << << n7;
 }
 
 func main (arg: int, arg2: int) -> void {

@@ -73,8 +73,10 @@ void LLVM_Generator::init() {
     type_string_length = nullptr;
     if (TargetMachine->getPointerSize(0) == 4) {
         type_string_length = type_i32;
+        type_intptr = type_i32;
     } else if (TargetMachine->getPointerSize(0) == 8) {
         type_string_length = type_i64;
+        type_intptr = type_i64;
     }
     
     assert(type_string_length);
@@ -165,14 +167,16 @@ FunctionType *LLVM_Generator::create_function_type(Ast_Function *function) {
     Type *return_type = type_void;
     
     for (auto &arg : function->arguments) {
-        if (arg->type_info == compiler->type_void) continue;
+        auto arg_type = get_type_info(arg);
         
-        Type *type = get_type(arg->type_info);
+        if (arg_type  == compiler->type_void) continue;
+        
+        Type *type = get_type(arg_type);
         arguments.add(type);
     }
     
     if (function->return_decl) {
-        return_type = get_type(function->return_decl->type_info);
+        return_type = get_type(get_type_info(function->return_decl));
     }
     
     return FunctionType::get(return_type, ArrayRef<Type *>(arguments.data, arguments.count), function->is_c_varargs);
@@ -224,6 +228,8 @@ Value *LLVM_Generator::dereference(Value *value, s64 element_path_index, bool is
 }
 
 Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalue) {
+    while(expression->substitution) expression = expression->substitution;
+    
     switch (expression->type) {
         case AST_SCOPE: {
             auto scope = static_cast<Ast_Scope *>(expression);
@@ -262,13 +268,12 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 Value *left  = emit_expression(bin->left,  false);
                 Value *right = emit_expression(bin->right, false);
                 
-                assert(types_match(bin->left->type_info, bin->right->type_info));
                 // @TODO NUW NSW?
                 switch (bin->operator_type) {
                     case Token::STAR:    return irb->CreateMul(left, right);
                     case Token::PERCENT: assert(false); // @Incomplete
                     case Token::SLASH: {
-                        auto info = bin->left->type_info;
+                        auto info = get_type_info(bin->left);
                         if (info->type == Ast_Type_Info::INTEGER) {
                             if (info->is_signed) {
                                 return irb->CreateSDiv(left, right);
@@ -280,8 +285,37 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                             return irb->CreateFDiv(left, right);
                         }
                     }
-                    case Token::PLUS:  return irb->CreateAdd(left, right);
-                    case Token::MINUS: return irb->CreateSub(left, right);
+                    case Token::PLUS: {
+                        auto left_type = get_type_info(bin->left);
+                        auto right_type = get_type_info(bin->right);
+                        
+                        if (left_type->type == Ast_Type_Info::POINTER &&
+                            right_type->type == Ast_Type_Info::INTEGER) {
+                            return irb->CreateGEP(left, {right});
+                        } else if (is_pointer_type(left_type) && is_pointer_type(right_type)) {
+                            Value *left_int  = irb->CreatePtrToInt(left,  type_intptr);
+                            Value *right_int = irb->CreatePtrToInt(right, type_intptr);
+                            
+                            Value *result = irb->CreateAdd(left_int, right_int);
+                            return irb->CreateIntToPtr(result, get_type(left_type));
+                        }
+                        
+                        return irb->CreateAdd(left, right);
+                    }
+                    case Token::MINUS: {
+                        auto left_type  = get_type_info(bin->left);
+                        auto right_type = get_type_info(bin->right);
+                        
+                        if (is_pointer_type(left_type) && is_pointer_type(right_type)) {
+                            Value *left_int  = irb->CreatePtrToInt(left,  type_intptr);
+                            Value *right_int = irb->CreatePtrToInt(right, type_intptr);
+                            
+                            Value *result = irb->CreateSub(left_int, right_int);
+                            return irb->CreateIntToPtr(result, get_type(left_type));
+                        }
+                        
+                        return irb->CreateSub(left, right);
+                    }
                     case Token::EQ_OP: return irb->CreateICmpEQ(left, right);
                     case Token::NE_OP: return irb->CreateICmpNE(left, right);
                     default: assert(false);
@@ -294,11 +328,12 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
         case AST_LITERAL: {
             auto lit = static_cast<Ast_Literal *>(expression);
             
+            auto type_info = get_type_info(lit);
             switch (lit->literal_type) {
-                case Ast_Literal::INTEGER: return ConstantInt::get(get_type(lit->type_info), lit->integer_value, lit->type_info->is_signed);
+                case Ast_Literal::INTEGER: return ConstantInt::get(get_type(type_info), lit->integer_value, type_info->is_signed);
                 case Ast_Literal::STRING:  return create_string_literal(lit);
-                case Ast_Literal::FLOAT:   return ConstantFP::get(get_type(lit->type_info),  lit->float_value);
-                case Ast_Literal::BOOL:    return ConstantInt::get(get_type(lit->type_info), (lit->bool_value ? 1 : 0));
+                case Ast_Literal::FLOAT:   return ConstantFP::get(get_type(type_info),  lit->float_value);
+                case Ast_Literal::BOOL:    return ConstantInt::get(get_type(type_info), (lit->bool_value ? 1 : 0));
                 default: return nullptr;
             }
         }
@@ -357,14 +392,14 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             
             auto value = dereference(lhs, deref->element_path_index, is_lvalue);
             return value;
-		}
+        }
         
         case AST_CAST: {
             auto cast = static_cast<Ast_Cast *>(expression);
             Value *value = emit_expression(cast->expression);
             
-            auto src = cast->expression->type_info;
-            auto dst = cast->type_info;
+            auto src = get_type_info(cast->expression);
+            auto dst = cast->target_type_info;
             
             auto src_type = get_type(src);
             auto dst_type = get_type(dst);
@@ -378,12 +413,36 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                         return irb->CreateZExt(value, dst_type);
                     }
                 }
+                
+                assert(src_type == dst_type);
+                return value;
             } else if (is_float_type(src) && is_float_type(dst)) {
                 if (src->size < dst->size) {
                     return irb->CreateFPExt(value, dst_type);
                 } else if (src->size > dst->size) {
                     return irb->CreateFPTrunc(value, dst_type);
                 }
+                
+                assert(src_type == dst_type);
+                return value;
+            } else if (is_float_type(src) && is_int_type(dst)) {
+                if (dst->is_signed) {
+                    return irb->CreateSIToFP(value, dst_type);
+                } else {
+                    return irb->CreateUIToFP(value, dst_type);
+                }
+            } else if (is_int_type(src) && is_float_type(dst)) {
+                if (src->is_signed) {
+                    return irb->CreateFPToSI(value, dst_type);
+                } else {
+                    return irb->CreateFPToUI(value, dst_type);
+                }
+            } else if (is_pointer_type(src) && is_pointer_type(dst)) {
+                return irb->CreatePointerCast(value, dst_type);
+            } else if (is_pointer_type(src) && is_int_type(dst)) {
+                return irb->CreatePtrToInt(value, dst_type);
+            } else if (is_int_type(src) && is_pointer_type(dst)) {
+                return irb->CreateIntToPtr(value, dst_type);
             }
             
             assert(false);
@@ -455,6 +514,28 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             irb->SetInsertPoint(next_block);
             break;
         }
+        
+        case AST_RETURN: {
+            auto ret = static_cast<Ast_Return *>(expression);
+            if (ret->expression) {
+                auto value = emit_expression(ret->expression);
+                assert(value);
+                irb->CreateRet(value);
+            } else {
+                irb->CreateRetVoid();
+            }
+            
+            // Create a new block so subsequent instructions have some where to generate to
+            // @TODO Actually, Idk if this is correct, will have to test with how ifs and loops work...
+            
+            /*
+            auto current_block = irb->GetInsertBlock();
+            BasicBlock *new_block = BasicBlock::Create(*llvm_context, "", current_block->getParent());
+            
+            irb->SetInsertPoint(new_block);
+            */
+            break;
+        }
     }
     
     return nullptr;
@@ -485,11 +566,13 @@ Function *LLVM_Generator::get_or_create_function(Ast_Function *function) {
 
 void LLVM_Generator::emit_scope(Ast_Scope *scope) {
     // setup variable mappings
-    for (auto &it : scope->declarations) {
+    for (auto it : scope->declarations) {
+        while (it->substitution) it = it->substitution;
+        
         if (it->type != AST_DECLARATION) continue;
         auto decl = static_cast<Ast_Declaration *>(it);
         
-        auto alloca = create_alloca_in_entry(irb, get_type(it->type_info));
+        auto alloca = create_alloca_in_entry(irb, get_type(get_type_info(it)));
         
         if (decl->identifier) {
             alloca->setName(string_ref(decl->identifier->name->name));
@@ -522,7 +605,7 @@ void LLVM_Generator::emit_function(Ast_Function *function) {
         auto a  = arg_it;
         
         auto decl = function->arguments[i];
-        Value *alloca = irb->CreateAlloca(get_type(decl->type_info));
+        Value *alloca = irb->CreateAlloca(get_type(get_type_info(decl)));
         
         if (decl->identifier) {
             alloca->setName(string_ref(decl->identifier->name->name));
@@ -540,8 +623,17 @@ void LLVM_Generator::emit_function(Ast_Function *function) {
     
     irb->SetInsertPoint(starting_block);
     emit_scope(function->scope);
-    irb->CreateRetVoid();
     
+    auto current_block = irb->GetInsertBlock();
+    
+    if (!current_block->getTerminator()) {
+        auto return_decl = function->return_decl;
+        if (return_decl) {
+            irb->CreateRet(Constant::getNullValue(get_type(get_type_info(return_decl))));
+        } else {
+            irb->CreateRetVoid();
+        }
+    }
     // func->dump();
     decl_value_map.clear();
 }

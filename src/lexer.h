@@ -60,6 +60,8 @@ struct Token {
         KEYWORD_TRUE,
         KEYWORD_FALSE,
         
+        KEYWORD_CAST,
+        
         TAG_C_FUNCTION,
         
         TEMPORARY_KEYWORD_C_VARARGS = 300,

@@ -98,6 +98,16 @@ Ast_Expression *Parser::parse_primary_expression() {
         return lit;
     }
     
+    if (token->type == '(') {
+        next_token();
+        
+        auto expr = parse_expression();
+        
+        if (!expect_and_eat((Token::Type) ')')) return nullptr;
+        
+        return expr;
+    }
+    
     return nullptr;
 }
 
@@ -185,6 +195,24 @@ Ast_Expression *Parser::parse_unary_expression() {
         
         ref->expression = expression;
         return ref;
+    } else if (token->type == Token::KEYWORD_CAST) {
+        Ast_Cast *cast = AST_NEW(Ast_Cast);
+        
+        next_token();
+        
+        if (!expect_and_eat((Token::Type) '(')) return nullptr;
+        
+        cast->target_type_info = parse_type_info();
+        
+        if (!expect_and_eat((Token::Type) ')')) return nullptr;
+        
+        cast->expression = parse_unary_expression();
+        if (!cast->expression) {
+            compiler->report_error(cast, "Malformed expression following cast.\n", token->type);
+            return nullptr;
+        }
+        
+        return cast;
     }
     
     return parse_postfix_expression();

@@ -56,6 +56,8 @@ void print_type(Ast_Type_Info *info) {
 }
 
 Ast_Expression *cast_int_to_int(Ast_Expression *expr, Ast_Type_Info *target) {
+    while (expr->substitution) expr = expr->substitution;
+    
     assert(expr->type_info->type == Ast_Type_Info::INTEGER);
     assert(target->type == Ast_Type_Info::INTEGER);
     
@@ -63,11 +65,14 @@ Ast_Expression *cast_int_to_int(Ast_Expression *expr, Ast_Type_Info *target) {
     
     Ast_Cast *cast = new Ast_Cast();
     cast->expression = expr;
+    cast->target_type_info = target;
     cast->type_info = target;
     return cast;
 }
 
 Ast_Expression *cast_float_to_float(Ast_Expression *expr, Ast_Type_Info *target) {
+    while (expr->substitution) expr = expr->substitution;
+    
     assert(expr->type_info->type == Ast_Type_Info::FLOAT);
     assert(target->type == Ast_Type_Info::FLOAT);
     
@@ -75,11 +80,14 @@ Ast_Expression *cast_float_to_float(Ast_Expression *expr, Ast_Type_Info *target)
     
     Ast_Cast *cast = new Ast_Cast();
     cast->expression = expr;
+    cast->target_type_info = target;
     cast->type_info = target;
     return cast;
 }
 
 bool expression_is_lvalue(Ast_Expression *expression, bool parent_wants_lvalue) {
+    while (expression->substitution) expression = expression->substitution;
+    
     switch (expression->type) {
         case AST_IDENTIFIER: {
             auto ident = static_cast<Ast_Identifier *>(expression);
@@ -111,12 +119,21 @@ bool expression_is_lvalue(Ast_Expression *expression, bool parent_wants_lvalue) 
 // @Cleanup if we introduce expression substitution, then we can remove the resut parameters and just set (left/right)->substitution
 // actually, if we do that, then we can't really use this for checking function calls.
 void Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast_Expression *right, Ast_Expression **result_left, Ast_Expression **result_right) {
+    while (left->substitution)  left  = left->substitution;
+    while (right->substitution) right = right->substitution;
+    
     if (left->type == AST_LITERAL) {
-        right = typecheck_expression(right);
-        left  = typecheck_expression(left, right->type_info);
+        typecheck_expression(right);
+        
+        while (right->substitution) right = right->substitution;
+        
+        typecheck_expression(left, right->type_info);
     } else {
-        left  = typecheck_expression(left);
-        right = typecheck_expression(right, left->type_info);
+        typecheck_expression(left);
+        
+        while (left->substitution) left = left->substitution;
+        
+        typecheck_expression(right, left->type_info);
     }
     
     if (compiler->errors_reported) return;
@@ -147,11 +164,22 @@ void Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast
 }
 
 void Sema::typecheck_scope(Ast_Scope *scope) {
+    assert(scope->substitution == nullptr);
+    
+    Ast_Scope *last = get_current_scope();
+    
+    if (last && !scope->owning_function) {
+        assert(last->owning_function);
+        scope->owning_function = last->owning_function;
+    }
+    
+    if (last) assert(scope->owning_function);
+    
     scope_stack.add(scope);
     
     for (auto &it : scope->statements) {
         // @TODO should we do replacements at the scope level?
-        auto _ = typecheck_expression(it);
+        typecheck_expression(it);
     }
     
     scope_stack.pop();
@@ -159,7 +187,9 @@ void Sema::typecheck_scope(Ast_Scope *scope) {
 
 Ast_Expression *Sema::find_declaration_for_atom_in_scope(Ast_Scope *scope, Atom *atom) {
     // @Incomplete check scope tree
-    for (auto &it : scope->declarations) {
+    for (auto it : scope->declarations) {
+        while (it->substitution) it = it->substitution;
+        
         if (it->type == AST_DECLARATION) {
             auto decl = static_cast<Ast_Declaration *>(it);
             if (decl->identifier->name == atom) return it;
@@ -186,7 +216,9 @@ Ast_Expression *Sema::find_declaration_for_atom(Atom *atom) {
 }
 
 
-Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_numeric_type) {
+void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_numeric_type) {
+    while (expression->substitution) expression = expression->substitution;
+    
     switch (expression->type) {
         case AST_IDENTIFIER: {
             auto ident = static_cast<Ast_Identifier *>(expression);
@@ -204,14 +236,14 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
                 ident->type_info = decl->type_info;
             }
             
-            return ident;
+            return;
         }
         
         case AST_DECLARATION: {
             auto decl = static_cast<Ast_Declaration *>(expression);
             
             // @TODO prevent use of a declaration in it's initializer
-            if (decl->initializer_expression) decl->initializer_expression = typecheck_expression(decl->initializer_expression, decl->type_info);
+            if (decl->initializer_expression) typecheck_expression(decl->initializer_expression, get_type_info(decl));
             
             if (!decl->type_info) {
                 assert(decl->initializer_expression);
@@ -228,11 +260,11 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
                     printf("\n");
                     print_type(decl->initializer_expression->type_info);
                     printf("\n");
-                    return decl;
+                    return;
                 }
             }
             
-            return decl;
+            return;
         }
         
         case AST_BINARY_EXPRESSION: {
@@ -240,10 +272,12 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
             
             typecheck_and_implicit_cast_expression_pair(bin->left, bin->right, &bin->left, &bin->right);
             
-            if (compiler->errors_reported) return bin;
+            if (compiler->errors_reported) return;
             
             // @Hack @Incomplete
-            bin->type_info = bin->left->type_info;
+            bin->type_info = get_type_info(bin->left);
+            
+            assert(bin->type_info);
             
             if (bin->operator_type == Token::EQ_OP
                 || bin->operator_type == Token::NE_OP
@@ -252,46 +286,57 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
                 bin->type_info = compiler->type_bool;
             }
             
-            if (!types_match(bin->left->type_info, bin->right->type_info)) {
+            auto left_type  = get_type_info(bin->left);
+            auto right_type = get_type_info(bin->right);
+            if (!types_match(left_type, right_type)) {
+                if ((bin->operator_type == Token::PLUS
+                     || bin->operator_type == Token::MINUS) &&
+                    left_type->type == Ast_Type_Info::POINTER && right_type->type == Ast_Type_Info::INTEGER) {
+                    return;
+                }
+                
                 // @TODO report types
-                // @TODO attempt to implicit cast
                 // @TOOD report operator
                 compiler->report_error(bin, "Incompatible types found on lhs and rhs of binary operator.");
-                return bin;
+                return;
             }
             
-            return bin;
+            return;
         }
         
         case AST_UNARY_EXPRESSION: {
             auto un = static_cast<Ast_Unary_Expression *>(expression);
-            un->expression = typecheck_expression(un->expression);
+            typecheck_expression(un->expression);
             
             if (un->operator_type == Token::STAR) {
                 if (!expression_is_lvalue(un->expression, true)) {
                     compiler->report_error(un, "lvalue required as unary '%c' operand.\n", un->operator_type);
                 }
-                un->type_info = make_pointer_type(un->expression->type_info);
+                un->type_info = make_pointer_type(get_type_info(un->expression));
                 
-                if (un->expression->type == AST_UNARY_EXPRESSION) {
-                    auto second = static_cast<Ast_Unary_Expression *>(un->expression);
+                auto expr = un->expression;
+                while (expr->substitution) expr = expr->substitution;
+                
+                if (expr->type == AST_UNARY_EXPRESSION) {
+                    auto second = static_cast<Ast_Unary_Expression *>(expr);
                     if (second->operator_type == Token::DEREFERENCE_OR_SHIFT && expression_is_lvalue(second->expression, false)) {
                         // remove this sequence of *<< because it is ineffective.
-                        return second->expression;
+                        un->substitution = second->expression;
+                        return;
                     }
                 }
             } else if (un->operator_type == Token::DEREFERENCE_OR_SHIFT) {
-                auto type = un->expression->type_info;
+                auto type = get_type_info(un->expression);
                 if (type->type != Ast_Type_Info::POINTER) {
                     compiler->report_error(un, "Cannot use '<<' on a non-pointer expression.\n");
-                    return un;
+                    return;
                 }
                 
                 un->type_info = type->pointer_to;
             }
             
             assert(un->type_info);
-            return un;
+            return;
         }
         
         case AST_LITERAL: {
@@ -325,20 +370,20 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
             
             assert(lit->type_info);
             
-            return lit;
+            return;
         }
         
         case AST_FUNCTION: {
             auto function = static_cast<Ast_Function *>(expression);
             typecheck_function(function);
-            return function;
+            return;
         }
         
         case AST_FUNCTION_CALL: {
             auto call = static_cast<Ast_Function_Call *>(expression);
-            auto _ = typecheck_expression(call->identifier);
+            typecheck_expression(call->identifier);
             
-            if (compiler->errors_reported) return nullptr;
+            if (compiler->errors_reported) return;
             
             assert(call->identifier->resolved_declaration);
             auto function = static_cast<Ast_Function *>(call->identifier->resolved_declaration);
@@ -346,14 +391,14 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
             if (function->type != AST_FUNCTION) {
                 String name = call->identifier->name->name;
                 compiler->report_error(call, "Declaration '%.*s' is not a function.\n", name.length, name.data);
-                return call;
+                return;
             }
             
             bool pass_c_varags = (function->is_c_varargs && call->argument_list.count >= function->arguments.count);
             if (!pass_c_varags &&  call->argument_list.count != function->arguments.count) {
                 // @TODO print function declaration as well as call site
                 compiler->report_error(call, "Mismatch in function call arguments. Wanted %lld, got %lld.\n", function->arguments.count, call->argument_list.count);
-                return call;
+                return;
             }
             
             typecheck_function(function);
@@ -369,11 +414,11 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
                     
                     if (!types_match(value->type_info, param->type_info)) {
                         compiler->report_error(value, "Mismatch in function call argument types.\n");
-                        return call;
+                        return;
                     }
                 } else if (function->is_c_varargs) {
                     // just do a normal typecheck on the call argument since this is for varargs
-                    value = typecheck_expression(value);
+                    typecheck_expression(value);
                 } else {
                     assert(false);
                 }
@@ -388,22 +433,22 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
                 call->type_info = compiler->type_void;
             }
             
-            return call;
+            return;
         }
         
         case AST_DEREFERENCE: {
             auto deref = static_cast<Ast_Dereference *>(expression);
-            deref->left = typecheck_expression(deref->left);
+            typecheck_expression(deref->left);
             
             
-            assert(deref->left->type_info);
+            assert(get_type_info(deref->left));
             
             // @Incomplete structs
-            auto left_type = deref->left->type_info;
+            auto left_type = get_type_info(deref->left);
             if (left_type->type != Ast_Type_Info::STRING) {
                 // @Incomplete report_error
                 compiler->report_error(deref, "Attempt to dereference a type that is not a string or struct!\n");
-                return deref;
+                return;
             }
             
             // @Hack until we have field members in the type_info (data and length would be field members of string)
@@ -423,8 +468,11 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
                 // @Hack @Cleanup
                 deref->byte_offset = 8; // @TargetInfo
                 deref->type_info = compiler->type_string_length;
+            } else {
+                compiler->report_error(deref, "No member '%.*s' in type string.\n", field_name.length, field_name.data);
             }
-            return deref;
+            
+            return;
         }
         
         case AST_IF: {
@@ -433,7 +481,7 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
             typecheck_expression(_if->condition);
             
             auto cond = _if->condition;
-            if (cond->type_info->type != Ast_Type_Info::BOOL) {
+            if (get_type_info(cond)->type != Ast_Type_Info::BOOL) {
                 // @TODO check for coercion to bool
                 compiler->report_error(cond, "'if' condition isn't of boolean type.\n");
             }
@@ -441,7 +489,7 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
             if (_if->then_statement) typecheck_expression(_if->then_statement);
             if (_if->else_statement) typecheck_expression(_if->else_statement);
             
-            return _if;
+            return;
         }
         
         case AST_WHILE: {
@@ -449,30 +497,101 @@ Ast_Expression *Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_
             
             typecheck_expression(loop->condition);
             
+            if (compiler->errors_reported) return;
+            
             auto cond = loop->condition;
-            if (cond->type_info->type != Ast_Type_Info::BOOL) {
+            if (get_type_info(cond)->type != Ast_Type_Info::BOOL) {
                 // @TODO check for coercion to bool
                 compiler->report_error(cond, "'while' condition isn't of boolean type.\n");
             }
             
             if (loop->statement) typecheck_expression(loop->statement);
             
-            return loop;
+            return;
         }
         
         case AST_SCOPE: {
             auto scope = static_cast<Ast_Scope *>(expression);
             typecheck_scope(scope);
-            return scope;
+            return;
+        }
+        
+        case AST_RETURN: {
+            auto ret = static_cast<Ast_Return *>(expression);
+            
+            auto scope = get_current_scope();
+            assert(scope);
+            
+            auto function = scope->owning_function;
+            if (function->return_decl) {
+                // since we are currently in the scope of this function, return_decl should be gauranteed to be typechecked already.
+                assert(get_type_info(function->return_decl));
+                
+                auto return_type = get_type_info(function->return_decl);
+                
+                if (!ret->expression) {
+                    compiler->report_error(ret, "'return' statement must return an expression of function return type.\n");
+                    // @Cleanup
+                    print_type(return_type);
+                    printf("\n");
+                    return;
+                }
+                
+                typecheck_expression(ret->expression);
+                if (compiler->errors_reported) return;
+                
+                auto value_type = get_type_info(ret->expression);
+                
+                if (!types_match(value_type, return_type)) {
+                    compiler->report_error(ret, "Type of return expression does not match function return type.\n");
+                    // @Cleanup
+                    print_type(return_type);
+                    printf("\n");
+                    print_type(value_type);
+                    printf("\n");
+                    return;
+                }
+            } else if (ret->expression) {
+                compiler->report_error(ret, "Cannot return non-void expression in function returning void.\n");
+                
+                typecheck_expression(ret->expression);
+            }
+            
+            return;
         }
         
         case AST_CAST: {
-            assert(false); // @Incomplete
-            return nullptr;
+            auto cast = static_cast<Ast_Cast *>(expression);
+            
+            typecheck_expression(cast->expression);
+            
+            if (compiler->errors_reported) return;
+            
+            auto expr_type = get_type_info(cast->expression);
+            auto target    = cast->target_type_info;
+            
+            assert(target);
+            
+            cast->type_info = target;
+            
+            if (!is_valid_primitive_cast(target, expr_type)) {
+                // @TODO print the types we're trying to cast between
+                compiler->report_error(cast, "Cast is invalid.\n");
+            }
+            
+            return;
         }
     }
     
     assert(false);
+    return;
+}
+
+Ast_Scope *Sema::get_current_scope() {
+    if (scope_stack.count) {
+        return scope_stack[scope_stack.count-1];
+    }
+    
     return nullptr;
 }
 
@@ -493,9 +612,9 @@ void Sema::typecheck_function(Ast_Function *function) {
         // @TODO error if a C function is declared returning a tuple
         /*
         if (function->returns.count > 1) {
-            compiler->report_error(function, "Function tagged @c_function may only have 1 return value.\n");
+        compiler->report_error(function, "Function tagged @c_function may only have 1 return value.\n");
         }
-*/
+        */
     }
     
     if (function->is_c_function && function->scope) {
@@ -517,6 +636,7 @@ void Sema::typecheck_function(Ast_Function *function) {
         }
         
         scope->statements.add(function->scope);
+        scope->owning_function = function; // Set owning function here because we are the first scope in the stack beginning at this function, child scopes will inherit owning_function from the previous scope in the stack.
         
         typecheck_scope(scope);
         // typecheck_scope(function->scope);
