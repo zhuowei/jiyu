@@ -80,6 +80,7 @@ struct Compiler {
     Ast_Type_Info *type_string_data;
     Ast_Type_Info *type_string_length;
     
+    Ast_Type_Info *type_info_type;
     
     Compiler() {
         atom_table = new Atom_Table();

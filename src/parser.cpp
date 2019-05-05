@@ -578,6 +578,25 @@ Ast_Expression *Parser::parse_statement() {
         return parse_function();
     }
     
+    if (token->type == Token::KEYWORD_TYPEALIAS) {
+        Ast_Type_Alias *alias = AST_NEW(Ast_Type_Alias);
+        next_token();
+        alias->identifier = parse_identifier();
+        
+        if (!expect_and_eat(Token::EQUALS)) return nullptr;
+        
+        alias->internal_type_inst = parse_type_inst();
+        
+        if (!alias->internal_type_inst) {
+            compiler->report_error(alias, "Could not parse aliasee following typealias.\n");
+            return nullptr;
+        }
+        
+        if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
+        
+        return alias;
+    }
+    
     if (token->type == Token::KEYWORD_VAR) {
         auto var = parse_variable_declaration(true);
         if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
@@ -680,7 +699,9 @@ void Parser::parse_scope(Ast_Scope *scope, bool requires_braces) {
         if (stmt) {
             scope->statements.add(stmt);
             
-            if (stmt->type == AST_DECLARATION || stmt->type == AST_FUNCTION) {
+            if (stmt->type == AST_DECLARATION ||
+                stmt->type == AST_FUNCTION    ||
+                stmt->type == AST_TYPE_ALIAS) {
                 scope->declarations.add(stmt);
             }
         }
@@ -793,6 +814,14 @@ Ast_Type_Instantiation *Parser::parse_type_inst() {
         
         Ast_Type_Instantiation *type_inst = AST_NEW(Ast_Type_Instantiation);
         type_inst->pointer_to = pointee;
+        return type_inst;
+    }
+    
+    if (token->type == Token::IDENTIFIER) {
+        Ast_Type_Instantiation *type_inst = AST_NEW(Ast_Type_Instantiation);
+        
+        auto ident = parse_identifier();
+        type_inst->typename_identifier = ident;
         return type_inst;
     }
     

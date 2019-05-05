@@ -24,6 +24,7 @@ enum Ast_Type {
     AST_WHILE,
     AST_RETURN,
     AST_TYPE_INSTANTIATION,
+    AST_TYPE_ALIAS,
 };
 
 struct Ast {
@@ -48,6 +49,7 @@ struct Ast_Type_Info {
         POINTER,
         ALIAS,
         FUNCTION,
+        TYPE, // meta type assigned to typealias and struct
         
         // User defined (mostly)
         STRUCT,
@@ -83,6 +85,12 @@ struct Ast_Type_Instantiation : Ast_Expression {
     Ast_Identifier *typename_identifier = nullptr;
 };
 
+struct Ast_Type_Alias : Ast_Expression {
+    Ast_Type_Alias() { type = AST_TYPE_ALIAS; }
+    
+    Ast_Identifier *identifier = nullptr;
+    Ast_Type_Instantiation *internal_type_inst = nullptr;
+};
 
 struct Ast_Unary_Expression : Ast_Expression {
     Ast_Unary_Expression() { type = AST_UNARY_EXPRESSION; }

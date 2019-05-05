@@ -15,7 +15,7 @@ func @c_function glfwPollEvents();
 func @c_function glClearColor(r: float, g: float, b: float, a: float);
 func @c_function glClear(bits: uint32);
 
-func c_style_strlen(input: *uint8) -> int64 {
+func c_style_strlen(input: c_string) -> int64 {
 	var cursor = input;
 	while <<cursor != 0 {
 		cursor = cursor + 1;
@@ -23,6 +23,8 @@ func c_style_strlen(input: *uint8) -> int64 {
 
 	return cast(int64) (cursor - input);
 }
+
+typealias c_string = *uint8;
 
 func to_string(input: *uint8) -> string {
 	var s: string;

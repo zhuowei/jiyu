@@ -76,6 +76,9 @@ void Compiler::init() {
     type_string_data = make_pointer_type(type_uint8);
     // @FixMe
     type_string_length = type_int64; // @TargetInfo
+    
+    type_info_type = new Ast_Type_Info();
+    type_info_type->type = Ast_Type_Info::TYPE;
 }
 
 Atom *Compiler::make_atom(String name) {

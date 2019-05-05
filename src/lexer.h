@@ -33,6 +33,7 @@ struct Token {
         KEYWORD_FUNC,
         KEYWORD_VAR,
         KEYWORD_LET,
+        KEYWORD_TYPEALIAS,
         
         KEYWORD_IF,
         KEYWORD_ELSE,

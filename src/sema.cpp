@@ -206,6 +206,9 @@ Ast_Expression *Sema::find_declaration_for_atom_in_scope(Ast_Scope *scope, Atom 
         } else if (it->type == AST_FUNCTION) {
             auto function = static_cast<Ast_Function *>(it);
             if (function->identifier->name == atom) return function;
+        } else if (it->type == AST_TYPE_ALIAS) {
+            auto alias = static_cast<Ast_Type_Alias *>(it);
+            if (alias->identifier->name == atom) return alias;
         } else {
             assert(false);
         }
@@ -228,6 +231,7 @@ Ast_Expression *Sema::find_declaration_for_atom(Atom *atom) {
 
 void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_numeric_type) {
     while (expression->substitution) expression = expression->substitution;
+    if (expression->type_info) return;
     
     switch (expression->type) {
         case AST_IDENTIFIER: {
@@ -242,6 +246,8 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 // @FixMe pass in ident
                 compiler->report_error(ident, "Undeclared identifier '%.*s'\n", name.length, name.data);
             } else {
+                typecheck_expression(decl);
+                
                 ident->resolved_declaration = decl;
                 ident->type_info = decl->type_info;
             }
@@ -544,6 +550,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         case AST_SCOPE: {
             auto scope = static_cast<Ast_Scope *>(expression);
             typecheck_scope(scope);
+            scope->type_info = compiler->type_void;
             return;
         }
         
@@ -612,6 +619,12 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             
             return;
         }
+        
+        case AST_TYPE_ALIAS: {
+            auto alias = static_cast<Ast_Type_Alias *>(expression);
+            alias->type_info = compiler->type_info_type;
+            return;
+        }
     }
     
     assert(false);
@@ -629,8 +642,28 @@ Ast_Type_Info *Sema::resolve_type_inst(Ast_Type_Instantiation *type_inst) {
     }
     
     if (type_inst->typename_identifier) {
-        // @TODO
-    }
+        typecheck_expression(type_inst->typename_identifier);
+        
+        if (compiler->errors_reported) return nullptr;
+        
+        auto ident = type_inst->typename_identifier;
+        
+        if (ident->type_info->type != Ast_Type_Info::TYPE) {
+            String name = ident->name->name;
+            compiler->report_error(ident, "Identifier '%.*s' doesn't name a type.\n", name.length, name.data);
+            return nullptr;
+        }
+        
+        auto decl = ident->resolved_declaration;
+        
+        if (decl->type == AST_TYPE_ALIAS) {
+            auto alias = static_cast<Ast_Type_Alias *>(decl);
+            
+            return resolve_type_inst( alias->internal_type_inst);
+        } else {
+            assert(false);
+            
+        }}
     
     assert(false);
     return nullptr;
@@ -653,6 +686,8 @@ void Sema::typecheck_function(Ast_Function *function) {
     }
     
     if (function->return_decl) typecheck_expression(function->return_decl);
+    
+    if (compiler->errors_reported) return;
     
     if (function->is_c_varargs && !function->is_c_function) {
         compiler->report_error(function, "Function must be tagged @c_function in order to use temporary_c_vararg.\n");
