@@ -12,8 +12,26 @@ func @c_function glfwSwapBuffers(window: *void);
 func @c_function glfwPollEvents();
 
 // OpenGL
-func @c_function glClearColor(r: float, g: float, b: float, a: float);
-func @c_function glClear(bits: uint32);
+typealias GLenum     = uint32;
+typealias GLboolean  = uint8;
+typealias GLbitfield = uint32;
+typealias GLbyte     = int8;
+typealias GLshort    = int16;
+typealias GLint      = int32;
+typealias GLsizei    = int32;
+typealias GLubyte    = uint8;
+typealias GLushort   = uint16;
+typealias GLuint     = uint32;
+typealias GLfloat    = float;
+typealias GLclampf   = float;
+typealias GLdouble   = double;
+typealias GLclampd   = double;
+typealias GLvoid     = void;
+
+let GL_COLOR_BUFFER_BIT: GLbitfield = 16384;
+
+func @c_function glClearColor(r: GLclampf, g: GLclampf, b: GLclampf, a: GLclampf);
+func @c_function glClear(bits: GLbitfield);
 
 func c_style_strlen(input: c_string) -> int64 {
 	var cursor = input;
@@ -26,14 +44,12 @@ func c_style_strlen(input: c_string) -> int64 {
 
 typealias c_string = *uint8;
 
-func to_string(input: *uint8) -> string {
+func to_string(input: c_string) -> string {
 	var s: string;
 	s.data   = input;
 	s.length = c_style_strlen(input);
 	return s;
 }
-
-let GL_COLOR_BUFFER_BIT = 16384;
 
 func main() {
 	var window: *void;
