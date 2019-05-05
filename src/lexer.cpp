@@ -18,7 +18,13 @@ static bool is_letter(char c) {
     return c >= 'a' && c <= 'z';
 }
 
-static bool is_digit(char c) {
+static bool is_digit(char c, int radix = 10) {
+    
+    if (radix == 16) {
+        char l = tolower(c);
+        if (l >= 'a' && l <= 'f') return true;
+    }
+    
     return c >= '0' && c <= '9';
 }
 
@@ -118,11 +124,24 @@ Token Lexer::lex_token() {
         return result;
     } else if (is_digit(text[current_char])) {
         auto start = current_char;
+        auto number_start = current_char;
         
-        while (current_char < text.length && is_digit(text[current_char])) current_char++;
+        int radix = 10;
+        if (text[current_char] == '0') {
+            current_char++;
+            
+            if (current_char < text.length &&
+                (text[current_char] == 'x' || text[current_char] == 'X')) {
+                radix = 16;
+                current_char++;
+                number_start = current_char;
+            }
+        }
+        
+        while (current_char < text.length && is_digit(text[current_char], radix)) current_char++;
         
         char *value_string = compiler->get_temp_c_string(text.substring(start, current_char - start));
-        auto value = atoll(value_string);
+        auto value = strtoll(value_string, nullptr, radix);
         
         return make_integer_token(value, Span(start, current_char - start));
     } else if (text[current_char] == '\"') {

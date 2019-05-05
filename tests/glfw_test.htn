@@ -28,7 +28,27 @@ typealias GLdouble   = double;
 typealias GLclampd   = double;
 typealias GLvoid     = void;
 
-let GL_COLOR_BUFFER_BIT: GLbitfield = 16384;
+let GL_CURRENT_BIT        : GLbitfield = 0x00000001;
+let GL_POINT_BIT          : GLbitfield = 0x00000002;
+let GL_LINE_BIT           : GLbitfield = 0x00000004;
+let GL_POLYGON_BIT        : GLbitfield = 0x00000008;
+let GL_POLYGON_STIPPLE_BIT: GLbitfield = 0x00000010;
+let GL_PIXEL_MODE_BIT     : GLbitfield = 0x00000020;
+let GL_LIGHTING_BIT       : GLbitfield = 0x00000040;
+let GL_FOG_BIT            : GLbitfield = 0x00000080;
+let GL_DEPTH_BUFFER_BIT   : GLbitfield = 0x00000100;
+let GL_ACCUM_BUFFER_BIT   : GLbitfield = 0x00000200;
+let GL_STENCIL_BUFFER_BIT : GLbitfield = 0x00000400;
+let GL_VIEWPORT_BIT       : GLbitfield = 0x00000800;
+let GL_TRANSFORM_BIT      : GLbitfield = 0x00001000;
+let GL_ENABLE_BIT         : GLbitfield = 0x00002000;
+let GL_COLOR_BUFFER_BIT   : GLbitfield = 0x00004000;
+let GL_HINT_BIT           : GLbitfield = 0x00008000;
+let GL_EVAL_BIT           : GLbitfield = 0x00010000;
+let GL_LIST_BIT           : GLbitfield = 0x00020000;
+let GL_TEXTURE_BIT        : GLbitfield = 0x00040000;
+let GL_SCISSOR_BIT        : GLbitfield = 0x00080000;
+let GL_ALL_ATTRIB_BITS    : GLbitfield = 0xFFFFFFFF;
 
 func @c_function glClearColor(r: GLclampf, g: GLclampf, b: GLclampf, a: GLclampf);
 func @c_function glClear(bits: GLbitfield);
