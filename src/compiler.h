@@ -82,6 +82,8 @@ struct Compiler {
     
     Ast_Type_Info *type_info_type;
     
+    Ast_Type_Info *type_ptr_void;
+    
     Compiler() {
         atom_table = new Atom_Table();
         global_scope = new Ast_Scope();

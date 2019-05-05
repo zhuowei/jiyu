@@ -63,38 +63,37 @@ Ast_Expression *Parser::parse_primary_expression() {
     }
     
     if (token->type == Token::INTEGER) {
+        Ast_Literal *lit = AST_NEW(Ast_Literal);
         next_token();
         
-        Ast_Literal *lit = AST_NEW(Ast_Literal);
         lit->literal_type = Ast_Literal::INTEGER;
         lit->integer_value = token->integer;
-        
-        // @TODO mark for infer
-        
         return lit;
     }
     
     if (token->type == Token::KEYWORD_TRUE || token->type == Token::KEYWORD_FALSE) {
+        Ast_Literal *lit = AST_NEW(Ast_Literal);
         next_token();
         
-        Ast_Literal *lit = AST_NEW(Ast_Literal);
         lit->literal_type = Ast_Literal::BOOL;
         lit->bool_value = (token->type == Token::KEYWORD_TRUE);
-        
-        // @TODO mark for infer
-        
         return lit;
     }
     
     if (token->type == Token::STRING) {
+        Ast_Literal *lit = AST_NEW(Ast_Literal);
         next_token();
         
-        Ast_Literal *lit = AST_NEW(Ast_Literal);
         lit->literal_type = Ast_Literal::STRING;
         lit->string_value = token->string;
+        return lit;
+    }
+    
+    if (token->type == Token::KEYWORD_NULL) {
+        Ast_Literal *lit = AST_NEW(Ast_Literal);
+        next_token();
         
-        // @TODO mark for infer
-        
+        lit->literal_type = Ast_Literal::NULLPTR;
         return lit;
     }
     
@@ -881,41 +880,23 @@ Ast_Function *Parser::parse_function() {
     if (!expect_and_eat((Token::Type) ')')) return nullptr;
     
     if (peek_token()->type == Token::ARROW) {
+        token = peek_token();
         if (!expect_and_eat(Token::ARROW)) return nullptr;
         
-        bool found_return_type = false;
-        token = peek_token();
-        while (token->type != Token::END) {
-            
-            if (token->type == '{' || token->type == Token::SEMICOLON) break;
-            
-            // @TODO parse tuple, we probably dont need to be in a loop here
-            Ast_Identifier *ident = nullptr;
-            if (token->type == Token::IDENTIFIER) {
-                ident = parse_identifier();
-                assert(ident);
-                
-                if (!expect_and_eat(Token::COLON)) return nullptr;
-            }
-            
-            Ast_Type_Instantiation *type_inst = parse_type_inst();
-            if (!type_inst) return nullptr;
-            
-            Ast_Declaration *decl = AST_NEW(Ast_Declaration);
-            decl->identifier = ident;
-            decl->type_inst = type_inst;
-            
-            function->return_decl = decl;
-            
-            found_return_type = true;
-            
-            token = peek_token();
-        }
-        
-        if (!found_return_type) {
-            compiler->report_error(token, "No return type found after arrow!\n");
+        Ast_Type_Instantiation *type_inst = parse_type_inst();
+        if (!type_inst) {
+            compiler->report_error(token, "Could not parse type following '->'.\n");
             return nullptr;
         }
+        
+        // @Cleanup change this from a declaration to just the type-instantiation?
+        Ast_Declaration *decl = AST_NEW(Ast_Declaration);
+        // decl->identifier = nullptr;
+        decl->type_inst = type_inst;
+        
+        function->return_decl = decl;
+        
+        token = peek_token();
     }
     
     

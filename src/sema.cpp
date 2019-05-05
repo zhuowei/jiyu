@@ -5,6 +5,33 @@
 
 #include <stdio.h>
 
+s32 get_levels_of_indirection(Ast_Type_Info *info) {
+    s32 count = 0;
+    
+    while (info) {
+        if (info->type == Ast_Type_Info::POINTER) {
+            info = info->pointer_to;
+            count++;
+        } else {
+            break;
+        }
+    }
+    
+    return count;
+}
+
+bool type_points_to_void_eventually(Ast_Type_Info *ptr) {
+    while (ptr) {
+        if (ptr->type == Ast_Type_Info::POINTER) {
+            ptr = ptr->pointer_to;
+        } else {
+            return ptr->type == Ast_Type_Info::VOID;
+        }
+    }
+    
+    return false;
+}
+
 void print_type(Ast_Type_Info *info) {
     if (info->type == Ast_Type_Info::INTEGER) {
         if (info->is_signed) {
@@ -64,6 +91,7 @@ Ast_Expression *cast_int_to_int(Ast_Expression *expr, Ast_Type_Info *target) {
     if (target->size == expr->type_info->size) return expr;
     
     Ast_Cast *cast = new Ast_Cast();
+    cast->text_span = expr->text_span;
     cast->expression = expr;
     // cast->target_type_inst = nullptr;
     cast->type_info = target;
@@ -79,8 +107,22 @@ Ast_Expression *cast_float_to_float(Ast_Expression *expr, Ast_Type_Info *target)
     if (target->size == expr->type_info->size) return expr;
     
     Ast_Cast *cast = new Ast_Cast();
+    cast->text_span = expr->text_span;
     cast->expression = expr;
     // cast->target_type_info = nullptr;
+    cast->type_info = target;
+    return cast;
+}
+
+Ast_Expression *cast_ptr_to_ptr(Ast_Expression *expr, Ast_Type_Info *target) {
+    while (expr->substitution) expr = expr->substitution;
+    
+    assert(expr->type_info->type == Ast_Type_Info::POINTER);
+    assert(target->type == Ast_Type_Info::POINTER);
+    
+    Ast_Cast *cast = new Ast_Cast();
+    cast->text_span = expr->text_span;
+    cast->expression = expr;
     cast->type_info = target;
     return cast;
 }
@@ -128,7 +170,7 @@ bool expression_is_lvalue(Ast_Expression *expression, bool parent_wants_lvalue) 
 
 // @Cleanup if we introduce expression substitution, then we can remove the resut parameters and just set (left/right)->substitution
 // actually, if we do that, then we can't really use this for checking function calls.
-void Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast_Expression *right, Ast_Expression **result_left, Ast_Expression **result_right) {
+void Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast_Expression *right, Ast_Expression **result_left, Ast_Expression **result_right, bool allow_coerce_to_ptr_void) {
     while (left->substitution)  left  = left->substitution;
     while (right->substitution) right = right->substitution;
     
@@ -165,6 +207,17 @@ void Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast
                 left = cast_float_to_float(left, rtype);
             } else if (ltype->size > rtype->size) {
                 right = cast_float_to_float(right, ltype);
+            }
+        } else if (allow_coerce_to_ptr_void && is_pointer_type(ltype) && is_pointer_type(rtype)) {
+            
+            // @Note you're only allowed to coerce right-to-left here, meaning if the right-expression is *void, the left-expression cannot coerce away from whatever ptr type it is.
+            if (type_points_to_void_eventually(ltype)) {
+                auto left_indir = get_levels_of_indirection(ltype);
+                auto right_indir = get_levels_of_indirection(rtype);
+                
+                if (left_indir == right_indir) {
+                    right = cast_ptr_to_ptr(right, ltype);
+                }
             }
         }
     }
@@ -300,7 +353,9 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         case AST_BINARY_EXPRESSION: {
             auto bin = static_cast<Ast_Binary_Expression *>(expression);
             
-            typecheck_and_implicit_cast_expression_pair(bin->left, bin->right, &bin->left, &bin->right);
+            bool allow_coerce_to_ptr_void = bin->operator_type == Token::EQUALS;
+            
+            typecheck_and_implicit_cast_expression_pair(bin->left, bin->right, &bin->left, &bin->right, allow_coerce_to_ptr_void);
             
             if (compiler->errors_reported) return;
             
@@ -405,6 +460,13 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             
             if (lit->literal_type == Ast_Literal::BOOL) lit->type_info = compiler->type_bool;
             
+            if (lit->literal_type == Ast_Literal::NULLPTR) {
+                lit->type_info = compiler->type_ptr_void;
+                if (want_numeric_type && want_numeric_type->type == Ast_Type_Info::POINTER) {
+                    lit->type_info = want_numeric_type;
+                }
+            }
+            
             assert(lit->type_info);
             
             return;
@@ -447,7 +509,8 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 if (i < function->arguments.count) {
                     // use null for morphed param because we don't care about the modified value because function parameter declarations can't be mutated here
                     auto param = function->arguments[i];
-                    typecheck_and_implicit_cast_expression_pair(param, value, nullptr, &value);
+                    bool allow_coerce_to_ptr_void = true;
+                    typecheck_and_implicit_cast_expression_pair(param, value, nullptr, &value, allow_coerce_to_ptr_void);
                     
                     if (!types_match(value->type_info, param->type_info)) {
                         compiler->report_error(value, "Mismatch in function call argument types.\n");
@@ -516,6 +579,8 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             auto _if = static_cast<Ast_If *>(expression);
             
             typecheck_expression(_if->condition);
+            
+            if (compiler->errors_reported) return;
             
             auto cond = _if->condition;
             if (get_type_info(cond)->type != Ast_Type_Info::BOOL) {

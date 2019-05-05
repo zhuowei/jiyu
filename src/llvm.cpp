@@ -209,6 +209,10 @@ static Value *create_alloca_in_entry(IRBuilder<> *irb, Type *type) {
 Value *LLVM_Generator::create_string_literal(Ast_Literal *lit) {
     assert(lit->literal_type == Ast_Literal::STRING);
     
+    if (lit->string_value.length == 0 || lit->string_value.data == nullptr) {
+        return Constant::getNullValue(type_string);
+    }
+    
     bool add_null = true;
     Constant *data = irb->CreateGlobalStringPtr(string_ref(lit->string_value));
     Constant *length = ConstantInt::get(type_string_length, lit->string_value.length);
@@ -334,6 +338,7 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 case Ast_Literal::STRING:  return create_string_literal(lit);
                 case Ast_Literal::FLOAT:   return ConstantFP::get(get_type(type_info),  lit->float_value);
                 case Ast_Literal::BOOL:    return ConstantInt::get(get_type(type_info), (lit->bool_value ? 1 : 0));
+                case Ast_Literal::NULLPTR: return ConstantPointerNull::get(static_cast<PointerType *>(get_type(type_info)));
                 default: return nullptr;
             }
         }
@@ -378,11 +383,6 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             auto func = get_or_create_function(target_function);
             
             assert(func);
-            
-            for (auto &r : args) {
-                r->dump();
-            }
-            func->dump();
             return irb->CreateCall(func, ArrayRef<Value *>(args.data, args.count));
         }
         
@@ -471,14 +471,15 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 emit_expression(_if->then_statement);
                 irb->SetInsertPoint(then_block);
             }
-            irb->CreateBr(next_block);
+            if (!then_block->getTerminator()) irb->CreateBr(next_block);
             
             if (_if->else_statement) {
                 else_block = BasicBlock::Create(*llvm_context, "else_target", current_block->getParent());
                 irb->SetInsertPoint(else_block);
                 emit_expression(_if->else_statement);
                 irb->SetInsertPoint(else_block);
-                irb->CreateBr(next_block);
+                
+                if (!else_block->getTerminator()) irb->CreateBr(next_block);
                 
                 failure_target = else_block;
             }

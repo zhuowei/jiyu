@@ -1,6 +1,44 @@
+// htn stuff
+
+typealias c_string = *uint8;
+
+func c_style_strlen(input: c_string) -> int64 {
+	var cursor = input;
+	while <<cursor != 0 {
+		cursor = cursor + 1;
+	}
+
+	return cast(int64) (cursor - input);
+}
+
+func to_string(input: c_string) -> string {
+	var s: string;
+	s.data   = input;
+	s.length = c_style_strlen(input);
+	return s;
+}
+
+
 
 // C library
 func @c_function printf(fmt: *uint8, temporary_c_vararg);
+
+typealias FILE = void;
+func @c_function fopen(path: c_string, mode: c_string) -> *FILE;
+func @c_function fclose(file: *FILE) -> int32;
+func @c_function ftell(file: *FILE) -> int32; // long int, this should be int32 on Windows but s64 on Linux/Mac
+func @c_function fread(ptr: *void, size: size_t, count: size_t, file: *FILE) -> size_t;
+
+let SEEK_SET = 0;
+let SEEK_CUR = 1;
+let SEEK_END = 2;
+
+func @c_function fseek(file: *FILE, offset: int32 /*long int*/, origin: int32);
+
+typealias size_t = uint32; // @FixMe I dont know if this is right
+
+func @c_function malloc(size: size_t) -> *void;
+func @c_function free(ptr: *void);
 
 // GLFW
 func @c_function glfwInit();
@@ -28,57 +66,80 @@ typealias GLdouble   = double;
 typealias GLclampd   = double;
 typealias GLvoid     = void;
 
-let GL_CURRENT_BIT        : GLbitfield = 0x00000001;
-let GL_POINT_BIT          : GLbitfield = 0x00000002;
-let GL_LINE_BIT           : GLbitfield = 0x00000004;
-let GL_POLYGON_BIT        : GLbitfield = 0x00000008;
-let GL_POLYGON_STIPPLE_BIT: GLbitfield = 0x00000010;
-let GL_PIXEL_MODE_BIT     : GLbitfield = 0x00000020;
-let GL_LIGHTING_BIT       : GLbitfield = 0x00000040;
-let GL_FOG_BIT            : GLbitfield = 0x00000080;
-let GL_DEPTH_BUFFER_BIT   : GLbitfield = 0x00000100;
-let GL_ACCUM_BUFFER_BIT   : GLbitfield = 0x00000200;
-let GL_STENCIL_BUFFER_BIT : GLbitfield = 0x00000400;
-let GL_VIEWPORT_BIT       : GLbitfield = 0x00000800;
-let GL_TRANSFORM_BIT      : GLbitfield = 0x00001000;
-let GL_ENABLE_BIT         : GLbitfield = 0x00002000;
-let GL_COLOR_BUFFER_BIT   : GLbitfield = 0x00004000;
-let GL_HINT_BIT           : GLbitfield = 0x00008000;
-let GL_EVAL_BIT           : GLbitfield = 0x00010000;
-let GL_LIST_BIT           : GLbitfield = 0x00020000;
-let GL_TEXTURE_BIT        : GLbitfield = 0x00040000;
-let GL_SCISSOR_BIT        : GLbitfield = 0x00080000;
-let GL_ALL_ATTRIB_BITS    : GLbitfield = 0xFFFFFFFF;
+let GL_CURRENT_BIT         : GLbitfield = 0x00000001;
+let GL_POINT_BIT           : GLbitfield = 0x00000002;
+let GL_LINE_BIT            : GLbitfield = 0x00000004;
+let GL_POLYGON_BIT         : GLbitfield = 0x00000008;
+let GL_POLYGON_STIPPLE_BIT : GLbitfield = 0x00000010;
+let GL_PIXEL_MODE_BIT      : GLbitfield = 0x00000020;
+let GL_LIGHTING_BIT        : GLbitfield = 0x00000040;
+let GL_FOG_BIT             : GLbitfield = 0x00000080;
+let GL_DEPTH_BUFFER_BIT    : GLbitfield = 0x00000100;
+let GL_ACCUM_BUFFER_BIT    : GLbitfield = 0x00000200;
+let GL_STENCIL_BUFFER_BIT  : GLbitfield = 0x00000400;
+let GL_VIEWPORT_BIT        : GLbitfield = 0x00000800;
+let GL_TRANSFORM_BIT       : GLbitfield = 0x00001000;
+let GL_ENABLE_BIT          : GLbitfield = 0x00002000;
+let GL_COLOR_BUFFER_BIT    : GLbitfield = 0x00004000;
+let GL_HINT_BIT            : GLbitfield = 0x00008000;
+let GL_EVAL_BIT            : GLbitfield = 0x00010000;
+let GL_LIST_BIT            : GLbitfield = 0x00020000;
+let GL_TEXTURE_BIT         : GLbitfield = 0x00040000;
+let GL_SCISSOR_BIT         : GLbitfield = 0x00080000;
+let GL_ALL_ATTRIB_BITS     : GLbitfield = 0xFFFFFFFF;
+
+let GL_POINTS              : GLenum = 0x0000;
+let GL_LINES               : GLenum = 0x0001;
+let GL_LINE_LOOP           : GLenum = 0x0002;
+let GL_LINE_STRIP          : GLenum = 0x0003;
+let GL_TRIANGLES           : GLenum = 0x0004;
+let GL_TRIANGLE_STRIP      : GLenum = 0x0005;
+let GL_TRIANGLE_FAN        : GLenum = 0x0006;
+let GL_QUADS               : GLenum = 0x0007;
+let GL_QUAD_STRIP          : GLenum = 0x0008;
+let GL_POLYGON             : GLenum = 0x0009;
+
+func @c_function glBegin(mode: GLenum);
+func @c_function glEnd();
+func @c_function glColor3f(r: GLfloat, g: GLfloat, b: GLfloat);
+func @c_function glVertex3f(x: GLfloat, y: GLfloat, z: GLfloat);
 
 func @c_function glClearColor(r: GLclampf, g: GLclampf, b: GLclampf, a: GLclampf);
 func @c_function glClear(bits: GLbitfield);
 
-func c_style_strlen(input: c_string) -> int64 {
-	var cursor = input;
-	while <<cursor != 0 {
-		cursor = cursor + 1;
-	}
 
-	return cast(int64) (cursor - input);
-}
+func read_entire_file(path: string) -> string {
+	// @FixMe this only works if path points to a constant string
+	var file = fopen(path.data, "rb".data);
+	if file == null return "";
 
-typealias c_string = *uint8;
+	fseek(file, 0, SEEK_END);
+	var length = ftell(file);
+	fseek(file, 0, SEEK_SET);
 
-func to_string(input: c_string) -> string {
-	var s: string;
-	s.data   = input;
-	s.length = c_style_strlen(input);
-	return s;
+	printf("File length: %d\n".data, length);
+
+	var mem = cast(c_string) malloc(length);
+	fread(mem, 1, length, file);
+	// @TODO verify fread success
+
+	fclose(file);
+
+	var result: string;
+	result.data = mem;
+	result.length = length;
+	return result;
 }
 
 func main() {
-	var window: *void;
-
 	glfwInit();
 
-	window = glfwCreateWindow(640, 480, "Hello, Sailor!".data, 0, 0);
+	var window = glfwCreateWindow(640, 480, "Hello, Sailor!".data, 0, 0);
 	
 	printf("String length: %d\n".data, c_style_strlen("Hello".data));
+
+	var contents = read_entire_file("test_file.txt"); // @Leak
+	printf("File contents: %.*s\n".data, contents.length, contents.data);
 
 	glfwMakeContextCurrent(window);
 

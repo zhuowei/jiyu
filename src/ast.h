@@ -162,6 +162,7 @@ struct Ast_Literal : Ast_Expression {
         STRING,
         FLOAT,
         BOOL,
+        NULLPTR,
     };
     
     Type literal_type;

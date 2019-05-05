@@ -79,6 +79,8 @@ void Compiler::init() {
     
     type_info_type = new Ast_Type_Info();
     type_info_type->type = Ast_Type_Info::TYPE;
+    
+    type_ptr_void = make_pointer_type(type_void);
 }
 
 Atom *Compiler::make_atom(String name) {

@@ -106,6 +106,7 @@ Token Lexer::lex_token() {
         else if (result.string == to_string("bool"))   result.type = Token::KEYWORD_BOOL;
         else if (result.string == to_string("true"))   result.type = Token::KEYWORD_TRUE;
         else if (result.string == to_string("false"))  result.type = Token::KEYWORD_FALSE;
+        else if (result.string == to_string("null"))   result.type = Token::KEYWORD_NULL;
         else if (result.string == to_string("if"))     result.type = Token::KEYWORD_IF;
         else if (result.string == to_string("else"))   result.type = Token::KEYWORD_ELSE;
         else if (result.string == to_string("while"))  result.type = Token::KEYWORD_WHILE;
