@@ -26,6 +26,8 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 
+#include "llvm/IR/IRBuilder.h"
+
 using namespace llvm;
 
 void LLVM_Generator::init() {

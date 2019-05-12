@@ -8,15 +8,19 @@ namespace llvm {
     class Module;
     class LLVMContext;
     
+    class Value;
+    
     class Type;
     class FunctionType;
     class StructType;
     class Function;
     
     class TargetMachine;
+    class ConstantFolder;
+    class IRBuilderDefaultInserter;
+    
+    template<typename T, typename Inserter> class IRBuilder;
 };
-
-#include "llvm/IR/IRBuilder.h"
 
 struct Compiler;
 struct Ast_Function;
@@ -34,7 +38,7 @@ struct LLVM_Generator {
     String obj_output_name;
     llvm::Module  *llvm_module;
     llvm::LLVMContext *llvm_context;
-    llvm::IRBuilder<> *irb;
+    llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter> *irb;
     
     llvm::Type *type_void;
     llvm::Type *type_i1;
