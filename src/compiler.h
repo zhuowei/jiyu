@@ -80,9 +80,15 @@ struct Compiler {
     Ast_Type_Info *type_string_data;
     Ast_Type_Info *type_string_length;
     
+    Ast_Type_Info *type_array_count;
+    
     Ast_Type_Info *type_info_type;
     
     Ast_Type_Info *type_ptr_void;
+    
+    Atom *atom_data;
+    Atom *atom_length;
+    Atom *atom_count;
     
     Compiler() {
         atom_table = new Atom_Table();

@@ -189,11 +189,14 @@ Ast_Expression *Parser::parse_postfix_expression() {
 Ast_Expression *Parser::parse_unary_expression() {
     Token *token = peek_token();
     
-    if (token->type == Token::STAR || token->type == Token::DEREFERENCE_OR_SHIFT) {
-        next_token();
-        
+    if (token->type == Token::STAR ||
+        token->type == Token::DEREFERENCE_OR_SHIFT ||
+        token->type == Token::MINUS) {
         Ast_Unary_Expression *ref = AST_NEW(Ast_Unary_Expression);
         ref->operator_type = token->type;
+        
+        
+        next_token();
         
         // we recurse through parse_unary_expression here, but we may be better off using a loop
         auto expression = parse_unary_expression();
@@ -262,6 +265,7 @@ Ast_Expression *Parser::parse_multiplicative_expression() {
 
 Ast_Expression *Parser::parse_additive_expression() {
     auto sub_expression = parse_multiplicative_expression();
+    if (!sub_expression) return nullptr;
     
     Token *token = peek_token();
     while (token->type != Token::END) {

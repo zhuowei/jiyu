@@ -84,4 +84,13 @@ func test_array() {
 
 	printf("array[1] is %d\n".data, array[1]);
 	printf("array[5] is %d\n".data, array[5]);
+
+	var static_array: [] uint8;
+	// array.data is sugar that expands to "*array[0]"
+	static_array.data = array.data;
+	// array.count expands to the literal value declared in the array brackets.
+	static_array.count = array.count;
+
+	// array[-7];
+	// static_array[0] = 3;
 }

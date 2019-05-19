@@ -127,6 +127,31 @@ Ast_Expression *cast_ptr_to_ptr(Ast_Expression *expr, Ast_Type_Info *target) {
     return cast;
 }
 
+
+Ast_Literal *make_integer_literal(s64 value, Ast_Type_Info *type_info) {
+    Ast_Literal *lit = new Ast_Literal();
+    lit->literal_type = Ast_Literal::INTEGER;
+    lit->integer_value = value;
+    lit->type_info = type_info;
+    return lit;
+}
+
+// @Note MUST typecheck the return value of this!!!
+Ast_Array_Dereference *make_array_index(Ast_Expression *array, Ast_Expression *index) {
+    Ast_Array_Dereference *deref = new Ast_Array_Dereference();
+    deref->array_or_pointer_expression = array;
+    deref->index_expression = index;
+    return deref;
+}
+
+// @Note MUST typecheck the return value of this!!!
+Ast_Unary_Expression *make_unary(Token::Type op, Ast_Expression *subexpr) {
+    Ast_Unary_Expression *un = new Ast_Unary_Expression();
+    un->operator_type = op;
+    un->expression = subexpr;
+    return un;
+}
+
 bool expression_is_lvalue(Ast_Expression *expression, bool parent_wants_lvalue) {
     while (expression->substitution) expression = expression->substitution;
     
@@ -179,24 +204,18 @@ bool expression_is_lvalue(Ast_Expression *expression, bool parent_wants_lvalue) 
 // @Cleanup if we introduce expression substitution, then we can remove the resut parameters and just set (left/right)->substitution
 // actually, if we do that, then we can't really use this for checking function calls.
 void Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast_Expression *right, Ast_Expression **result_left, Ast_Expression **result_right, bool allow_coerce_to_ptr_void) {
-    while (left->substitution)  left  = left->substitution;
-    while (right->substitution) right = right->substitution;
-    
     if (left->type == AST_LITERAL) {
         typecheck_expression(right);
-        
-        while (right->substitution) right = right->substitution;
-        
-        typecheck_expression(left, right->type_info);
+        typecheck_expression(left, get_type_info(right));
     } else {
         typecheck_expression(left);
-        
-        while (left->substitution) left = left->substitution;
-        
-        typecheck_expression(right, left->type_info);
+        typecheck_expression(right, get_type_info(left));
     }
     
     if (compiler->errors_reported) return;
+    
+    while (left->substitution)  left  = left->substitution;
+    while (right->substitution) right = right->substitution;
     
     assert(left->type_info);
     assert(right->type_info);
@@ -433,6 +452,26 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 }
                 
                 un->type_info = type->pointer_to;
+            } else if (un->operator_type == Token::MINUS) {
+                auto type = get_type_info(un->expression);
+                if (type->type != Ast_Type_Info::INTEGER && type->type != Ast_Type_Info::FLOAT) {
+                    compiler->report_error(un, "Unary '-' is only valid for integer for float operands.\n");
+                    return;
+                }
+                
+                auto lit = resolves_to_literal_value(un->expression);
+                if (lit) {
+                    if (type->type == Ast_Type_Info::INTEGER) {
+                        lit->integer_value = (-lit->integer_value);
+                    } else if (type->type == Ast_Type_Info::FLOAT) {
+                        lit->float_value = (-lit->float_value);
+                    } else assert(0);
+                    
+                    un->substitution = lit;
+                }
+                
+                // @Incomplete I think, should we warn about unary minus on unsiged integers?
+                un->type_info = type;
             }
             
             assert(un->type_info);
@@ -553,31 +592,80 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             
             // @Incomplete structs
             auto left_type = get_type_info(deref->left);
-            if (left_type->type != Ast_Type_Info::STRING) {
+            if (left_type->type != Ast_Type_Info::STRING &&
+                left_type->type != Ast_Type_Info::ARRAY) {
                 // @Incomplete report_error
-                compiler->report_error(deref, "Attempt to dereference a type that is not a string or struct!\n");
+                compiler->report_error(deref, "Attempt to dereference a type that is not a string, struct, or array!\n");
                 return;
             }
             
             // @Hack until we have field members in the type_info (data and length would be field members of string)
             assert(deref->field_selector && deref->field_selector->name);
-            String field_name = deref->field_selector->name->name;
+            Atom *field_atom = deref->field_selector->name;
             
-            if (field_name == to_string("data")) {
-                deref->element_path_index = 0;
-                deref->byte_offset = 0;
-                
-                // @Hack @Incomplete
-                deref->type_info = compiler->type_string_data;
-            } else if (field_name == to_string("length")) {
-                deref->element_path_index = 1;
-                // @Hack @Cleanup
-                // @Hack @Cleanup
-                // @Hack @Cleanup
-                deref->byte_offset = 8; // @TargetInfo
-                deref->type_info = compiler->type_string_length;
-            } else {
-                compiler->report_error(deref, "No member '%.*s' in type string.\n", field_name.length, field_name.data);
+            if (left_type->type == Ast_Type_Info::STRING) {
+                if (field_atom == compiler->atom_data) {
+                    deref->element_path_index = 0;
+                    deref->byte_offset = 0;
+                    
+                    // @Hack @Incomplete
+                    deref->type_info = compiler->type_string_data;
+                } else if (field_atom == compiler->atom_length) {
+                    deref->element_path_index = 1;
+                    // @Hack @Cleanup
+                    // @Hack @Cleanup
+                    // @Hack @Cleanup
+                    deref->byte_offset = 8; // @TargetInfo
+                    deref->type_info = compiler->type_string_length;
+                } else {
+                    String field_name = field_atom->name;
+                    compiler->report_error(deref, "No member '%.*s' in type string.\n", field_name.length, field_name.data);
+                }
+            } else if (left_type->type == Ast_Type_Info::ARRAY) {
+                if (left_type->array_element_count == -1) {
+                    assert(left_type->is_dynamic == false);
+                    
+                    if (field_atom == compiler->atom_data) {
+                        deref->element_path_index = 0;
+                        deref->byte_offset = 0;
+                        
+                        // @Hack @Incomplete
+                        deref->type_info = make_pointer_type(left_type->array_element);
+                    } else if (field_atom == compiler->atom_count) {
+                        deref->element_path_index = 1;
+                        // @Hack @Cleanup
+                        // @Hack @Cleanup
+                        // @Hack @Cleanup
+                        deref->byte_offset = 8; // @TargetInfo
+                        deref->type_info = compiler->type_array_count;
+                    } else {
+                        String field_name = field_atom->name;
+                        compiler->report_error(deref, "No member '%.*s' in type array.\n", field_name.length, field_name.data);
+                    }
+                } else {
+                    assert(left_type->is_dynamic == false);
+                    
+                    if (field_atom == compiler->atom_data) {
+                        auto index_lit = make_integer_literal(0, compiler->type_array_count);
+                        index_lit->text_span = deref->text_span;
+                        
+                        auto index = make_array_index(deref->left, index_lit);
+                        index->text_span = deref->text_span;
+                        
+                        auto addr = make_unary(Token::STAR, index);
+                        addr->text_span = deref->text_span;
+                        
+                        typecheck_expression(addr);
+                        deref->substitution = addr;
+                    } else if (field_atom == compiler->atom_count) {
+                        auto lit = make_integer_literal(left_type->array_element_count, compiler->type_array_count);
+                        lit->text_span = deref->text_span;
+                        deref->substitution = lit;
+                    } else {
+                        String field_name = field_atom->name;
+                        compiler->report_error(deref, "No member '%.*s' in known-size array.\n", field_name.length, field_name.data);
+                    }
+                }
             }
             
             return;
@@ -725,6 +813,26 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             if (index_type->type != Ast_Type_Info::INTEGER) {
                 compiler->report_error(deref->index_expression, "Array index subscript must be of integer type.\n");
                 return;
+            }
+            
+            if (array_type->type == Ast_Type_Info::ARRAY &&
+                array_type->array_element_count >= 0) {
+                auto lit = resolves_to_literal_value(deref->index_expression);
+                if (lit) {
+                    auto lit_type = get_type_info(lit);
+                    auto value = lit->integer_value;
+                    
+                    bool out_of_range = false;
+                    if (lit_type->is_signed) {
+                        if (value < 0) out_of_range = true;
+                    }
+                    
+                    if (value >= array_type->array_element_count) out_of_range = true;
+                    
+                    if (out_of_range) {
+                        compiler->report_error(deref->index_expression, "Index value %lld is outside the range of known-size array (size: %lld).\n", value, array_type->array_element_count);
+                    }
+                }
             }
             
             if (array_type->type == Ast_Type_Info::ARRAY) deref->type_info = array_type->array_element;

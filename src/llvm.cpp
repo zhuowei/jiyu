@@ -161,10 +161,19 @@ Type *LLVM_Generator::get_type(Ast_Type_Info *type) {
     }
     
     if (type->type == Ast_Type_Info::ARRAY) {
+        auto element = get_type(type->array_element);
         if (type->array_element_count >= 0) {
             assert(type->is_dynamic == false);
             
-            return ArrayType::get(get_type(type->array_element), type->array_element_count);
+            return ArrayType::get(element, type->array_element_count);
+        } else {
+            if (!type->is_dynamic) {
+                // @Cleanup this should be type_array_count or something
+                auto count = type_string_length;
+                auto data  = element->getPointerTo();
+                
+                return StructType::get(*llvm_context, {data, count}, false);
+            }
         }
     }
     
@@ -264,6 +273,15 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 
                 if (!is_lvalue) value = irb->CreateLoad(value);
                 return value;
+            } else if (un->operator_type == Token::MINUS) {
+                auto value = emit_expression(un->expression);
+                auto type = get_type_info(un->expression);
+                
+                if (type->type == Ast_Type_Info::INTEGER) {
+                    return irb->CreateNeg(value);
+                } else if (type->type == Ast_Type_Info::FLOAT) {
+                    return irb->CreateFNeg(value);
+                }
             }
             
             assert(false);

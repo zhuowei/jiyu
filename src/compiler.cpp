@@ -16,6 +16,12 @@ bool types_match(Ast_Type_Info *left, Ast_Type_Info *right) {
         return types_match(left->pointer_to, right->pointer_to);
     }
     
+    if (left->type == Ast_Type_Info::ARRAY) {
+        return types_match(left->array_element, right->array_element) &&
+            left->array_element_count == right->array_element_count &&
+            left->is_dynamic == right->is_dynamic;
+    }
+    
     return true;
 }
 
@@ -25,6 +31,17 @@ Ast_Type_Info *make_array_type(Ast_Type_Info *element, array_count_type count, b
     info->array_element       = element;
     info->array_element_count = count;
     info->is_dynamic = is_dynamic;
+    
+    if (count >= 0) {
+        assert(is_dynamic == false);
+        info->size = element->size * count;
+    } else {
+        if (!is_dynamic) {
+            info->size = 16; // @Cleanup hardcoded value
+        } else {
+            assert(false); // @Incomplete
+        }
+    }
     return info;
 }
 
@@ -86,10 +103,16 @@ void Compiler::init() {
     // @FixMe
     type_string_length = type_int64; // @TargetInfo
     
+    type_array_count   = type_int64; // @TargetInfo
+    
     type_info_type = new Ast_Type_Info();
     type_info_type->type = Ast_Type_Info::TYPE;
     
     type_ptr_void = make_pointer_type(type_void);
+    
+    atom_data   = make_atom(to_string("data"));
+    atom_length = make_atom(to_string("length"));
+    atom_count  = make_atom(to_string("count"));
 }
 
 Atom *Compiler::make_atom(String name) {
