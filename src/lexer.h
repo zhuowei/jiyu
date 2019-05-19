@@ -80,6 +80,8 @@ struct Token {
         DEREFERENCE_OR_SHIFT, // <<
         RIGHT_SHIFT,          // >>
         
+        DOTDOT,               // ..
+        
         COMMENT,
     };
     

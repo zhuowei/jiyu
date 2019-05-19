@@ -25,6 +25,7 @@ enum Ast_Type {
     AST_RETURN,
     AST_TYPE_INSTANTIATION,
     AST_TYPE_ALIAS,
+    AST_ARRAY_DEREFERENCE,
 };
 
 struct Ast {
@@ -47,6 +48,7 @@ struct Ast_Type_Info {
         
         // non-primitves
         POINTER,
+        ARRAY,
         ALIAS,
         FUNCTION,
         TYPE, // meta type assigned to typealias and struct
@@ -60,8 +62,12 @@ struct Ast_Type_Info {
     
     bool is_signed = false; // for INTEGER
     
-    Ast_Type_Info *pointer_to = nullptr;
-    Ast_Type_Info *alias_of   = nullptr;
+    Ast_Type_Info *pointer_to    = nullptr;
+    Ast_Type_Info *alias_of      = nullptr;
+    Ast_Type_Info *array_element = nullptr;
+    
+    array_count_type array_element_count = -1;
+    bool is_dynamic = false; // for array
     
     // Ast_Function *function;
     
@@ -83,6 +89,11 @@ struct Ast_Type_Instantiation : Ast_Expression {
     Ast_Type_Info *builtin_primitive = nullptr;
     Ast_Type_Instantiation *pointer_to = nullptr;
     Ast_Identifier *typename_identifier = nullptr;
+    
+    Ast_Type_Instantiation *array_element_type = nullptr;
+    Ast_Expression *array_size_expression = nullptr;
+    bool array_is_dynamic = false;
+    
 };
 
 struct Ast_Type_Alias : Ast_Expression {
@@ -122,6 +133,13 @@ struct Ast_Dereference : Ast_Expression {
     
     s64 element_path_index = -1; // 0-based element into the list of declarations or fields within the outer type
     s64 byte_offset = -1; // byte-offset from the start of the the memory occupied by the outer type
+};
+
+struct Ast_Array_Dereference : Ast_Expression {
+    Ast_Array_Dereference() { type = AST_ARRAY_DEREFERENCE; }
+    
+    Ast_Expression *array_or_pointer_expression = nullptr;
+    Ast_Expression *index_expression = nullptr;
 };
 
 struct Ast_Function_Call : Ast_Expression {

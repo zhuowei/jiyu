@@ -160,6 +160,14 @@ Type *LLVM_Generator::get_type(Ast_Type_Info *type) {
         return pointee->getPointerTo();
     }
     
+    if (type->type == Ast_Type_Info::ARRAY) {
+        if (type->array_element_count >= 0) {
+            assert(type->is_dynamic == false);
+            
+            return ArrayType::get(get_type(type->array_element), type->array_element_count);
+        }
+    }
+    
     assert(false);
     return nullptr;
 }
@@ -227,6 +235,7 @@ Value *LLVM_Generator::dereference(Value *value, s64 element_path_index, bool is
     if (auto constant = dyn_cast<Constant>(value)) {
         return irb->CreateExtractValue(constant, element_path_index);
     } else {
+        // @Cleanup type_i32 use for array indexing?
         auto valueptr = irb->CreateGEP(value, { ConstantInt::get(type_i32, 0), ConstantInt::get(type_i32, element_path_index) });
         if (!is_lvalue) return irb->CreateLoad(valueptr);
         return valueptr;
@@ -382,6 +391,26 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             }
             
             auto target_function = static_cast<Ast_Function *>(call->identifier->resolved_declaration);
+            
+            // promote C vararg arguments if they are not the required sizes
+            // for ints, this typically means promoting i8 and i16 to i32.
+            if (target_function->is_c_varargs) {
+                for (array_count_type i = target_function->arguments.count; i < call->argument_list.count; ++i) {
+                    auto value = args[i];
+                    auto arg   = call->argument_list[i];
+                    
+                    auto type = value->getType();
+                    if (type->isIntegerTy() && type->getPrimitiveSizeInBits() < type_i32->getPrimitiveSizeInBits()) {
+                        assert(get_type_info(arg)->type == Ast_Type_Info::INTEGER);
+                        if (get_type_info(arg)->is_signed) {
+                            args[i] = irb->CreateSExt(value, type_i32);
+                        } else {
+                            args[i] = irb->CreateZExt(value, type_i32);
+                        }
+                    }
+                }
+            }
+            
             auto func = get_or_create_function(target_function);
             
             assert(func);
@@ -542,6 +571,22 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             irb->SetInsertPoint(new_block);
             */
             break;
+        }
+        
+        case AST_ARRAY_DEREFERENCE: {
+            auto deref = static_cast<Ast_Array_Dereference *>(expression);
+            
+            auto array = emit_expression(deref->array_or_pointer_expression, true);
+            auto index = emit_expression(deref->index_expression);
+            
+            // @Incomplete dynamic and unknown size array indexing
+            
+            // @Cleanup type_i32 use for array indexing
+            auto element = irb->CreateGEP(array, {ConstantInt::get(type_i32, 0), index});
+            
+            if (!is_lvalue) return irb->CreateLoad(element);
+            
+            return element;
         }
     }
     

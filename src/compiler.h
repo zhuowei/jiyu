@@ -102,6 +102,8 @@ struct Compiler {
 
 Ast_Type_Info *make_pointer_type(Ast_Type_Info *pointee);
 
+Ast_Type_Info *make_array_type(Ast_Type_Info *element, array_count_type count, bool is_dynamic);
+
 bool types_match(Ast_Type_Info *left, Ast_Type_Info *right);
 
 inline
@@ -144,10 +146,12 @@ bool is_valid_primitive_cast(Ast_Type_Info *target, Ast_Type_Info *source) {
 }
 
 inline
-bool resolves_to_literal_value(Ast_Expression *expr) {
+Ast_Literal *resolves_to_literal_value(Ast_Expression *expr) {
     while (expr->substitution) expr = expr->substitution;
     
-    return expr->type == AST_LITERAL;
+    if (expr->type == AST_LITERAL) return static_cast<Ast_Literal *>(expr);
+    
+    return nullptr;
 }
 
 #endif

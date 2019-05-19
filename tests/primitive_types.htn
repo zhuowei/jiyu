@@ -19,3 +19,7 @@ func main() -> void {
 
 	var _bool: bool;
 }
+
+func array_types() {
+	var _sized_array: [15] uint8;
+}

@@ -165,6 +165,16 @@ Ast_Expression *Parser::parse_postfix_expression() {
             deref->field_selector = right;
             
             sub_expression = deref;
+        } else if (token->type == '[') {
+            Ast_Array_Dereference *deref = AST_NEW(Ast_Array_Dereference);
+            
+            next_token();
+            deref->array_or_pointer_expression = sub_expression;
+            deref->index_expression = parse_expression();
+            
+            if (!expect_and_eat((Token::Type) ']')) return nullptr;
+            
+            sub_expression = deref;
         } else {
             break;
         }
@@ -821,6 +831,35 @@ Ast_Type_Instantiation *Parser::parse_type_inst() {
         
         auto ident = parse_identifier();
         type_inst->typename_identifier = ident;
+        return type_inst;
+    }
+    
+    if (token->type == '[') {
+        Ast_Type_Instantiation *type_inst = AST_NEW(Ast_Type_Instantiation);
+        next_token();
+        
+        token = peek_token();
+        if (token->type == Token::DOTDOT) {
+            type_inst->array_is_dynamic = true;
+            next_token();
+            
+            if (!expect_and_eat((Token::Type) ']')) return type_inst;
+        } else if (token->type == ']') {
+            next_token();
+        } else {
+            type_inst->array_size_expression = parse_expression();
+            
+            if (!type_inst->array_size_expression) {
+                compiler->report_error(type_inst, "Expected expression or '..' token within array size instantiation.\n");
+            }
+            
+            if (!expect_and_eat((Token::Type) ']')) return type_inst;
+        }
+        
+        type_inst->array_element_type = parse_type_inst();
+        if (!type_inst->array_element_type) {
+            compiler->report_error(type_inst, "Couldn't parse array element type.\n");
+        }
         return type_inst;
     }
     

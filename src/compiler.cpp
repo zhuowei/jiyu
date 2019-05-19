@@ -19,6 +19,15 @@ bool types_match(Ast_Type_Info *left, Ast_Type_Info *right) {
     return true;
 }
 
+Ast_Type_Info *make_array_type(Ast_Type_Info *element, array_count_type count, bool is_dynamic) {
+    Ast_Type_Info *info = new Ast_Type_Info();
+    info->type = Ast_Type_Info::ARRAY;
+    info->array_element       = element;
+    info->array_element_count = count;
+    info->is_dynamic = is_dynamic;
+    return info;
+}
+
 Ast_Type_Info *make_pointer_type(Ast_Type_Info *pointee) {
     Ast_Type_Info *info = new Ast_Type_Info();
     info->type = Ast_Type_Info::POINTER;

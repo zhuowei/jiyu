@@ -211,6 +211,12 @@ Token Lexer::lex_token() {
             current_char += 2;
             return make_token(Token::ARROW, Span(start, 2));
         }
+    } else if (text[current_char] == '.') {
+        if (current_char+1 < text.length && text[current_char+1] == '.') {
+            string_length_type start = current_char;
+            current_char += 2;
+            return make_token(Token::DOTDOT, Span(start, 2));
+        }
     } else if (text[current_char] == '/') {
         if (current_char+1 < text.length && text[current_char+1] == '*') {
             string_length_type start = current_char;

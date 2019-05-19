@@ -1,5 +1,5 @@
 func @c_function exit(value: int);
-func @c_function write(fd: int, buf: *uint8, count: int);
+func @c_function _write(fd: int, buf: *uint8, count: int);
 func @c_function printf(fmt: *uint8, temporary_c_vararg);
 
 func test_func() -> void {
@@ -26,7 +26,7 @@ func test_func() -> void {
 
     var n7: ***int;
     // THIS IS SUPPOSED TO FAIL
-    var n8 = *  << << n7;
+    // var n8 = *  << << n7;
 }
 
 func main (arg: int, arg2: int) -> void {
@@ -36,11 +36,13 @@ func main (arg: int, arg2: int) -> void {
     // my_var = my_var2;
 
    var my_string = "Hello, World!\n";
-   write(1, "Hello, Sailor!\n".data, 15);
-   write(1, my_string.data, 14);
+   _write(1, "Hello, Sailor!\n".data, 15);
+   _write(1, my_string.data, 14);
 
    printf("Test %d\n".data, my_var);
 	test_bool();
+
+   test_array();
    exit(11);
 }
 
@@ -68,4 +70,18 @@ func test_bool() {
 		printf("while_test\n".data);
 		i = i + 1;
 	}
+}
+
+func test_array() {
+	var array: [8] uint8;
+
+	array[0] = 1;
+
+	array[5] = 2;
+
+	var i = array[5];
+	printf("i is %d\n".data, i);
+
+	printf("array[1] is %d\n".data, array[1]);
+	printf("array[5] is %d\n".data, array[5]);
 }
