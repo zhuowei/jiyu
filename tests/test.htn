@@ -76,13 +76,14 @@ func test_array() {
 	var array: [8] uint8;
 
 	array[0] = 1;
-
+	array[3] = 23;
 	array[5] = 2;
 
 	var i = array[5];
 	printf("i is %d\n".data, i);
 
 	printf("array[1] is %d\n".data, array[1]);
+	printf("array[3] is %d\n".data, array[3]);
 	printf("array[5] is %d\n".data, array[5]);
 
 	var static_array: [] uint8;
@@ -92,5 +93,8 @@ func test_array() {
 	static_array.count = array.count;
 
 	// array[-7];
-	// static_array[0] = 3;
+	static_array[3] = 3;
+
+	printf("array[3] %d\n".data, array[3]);
+	printf("static_array[3] %d\n".data, static_array[3]);
 }
