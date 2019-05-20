@@ -362,7 +362,9 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             }
             
             if (decl->type_info && decl->initializer_expression) {
-                if (!types_match(decl->type_info, decl->initializer_expression->type_info)) {
+                bool allow_coerce_to_ptr_void = true;
+                typecheck_and_implicit_cast_expression_pair(decl, decl->initializer_expression, nullptr, &decl->initializer_expression, allow_coerce_to_ptr_void);
+                if (!types_match(get_type_info(decl), get_type_info(decl->initializer_expression))) {
                     // @TODO report the types here
                     // @TODO attempt to implciit cast if available
                     compiler->report_error(decl->initializer_expression, "Attempt to initialize variable with expression of incompatible type.\n");
@@ -401,7 +403,9 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             if (bin->operator_type == Token::EQ_OP
                 || bin->operator_type == Token::NE_OP
                 || bin->operator_type == Token::LE_OP
-                || bin->operator_type == Token::GE_OP) {
+                || bin->operator_type == Token::GE_OP
+                || bin->operator_type == '>'
+                || bin->operator_type == '<') {
                 bin->type_info = compiler->type_bool;
             }
             
@@ -460,6 +464,8 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 }
                 
                 auto lit = resolves_to_literal_value(un->expression);
+                // @TODO this isnt exactly correct...
+                /*
                 if (lit) {
                     if (type->type == Ast_Type_Info::INTEGER) {
                         lit->integer_value = (-lit->integer_value);
@@ -469,6 +475,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     
                     un->substitution = lit;
                 }
+                */
                 
                 // @Incomplete I think, should we warn about unary minus on unsiged integers?
                 un->type_info = type;

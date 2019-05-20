@@ -369,6 +369,47 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                             return irb->CreateFCmpULE(left, right);
                         }
                     }
+                    case Token::GE_OP: {
+                        auto info = get_type_info(bin->left);
+                        if (is_int_type(info)) {
+                            if (info->is_signed) {
+                                return irb->CreateICmpSGE(left, right);
+                            } else {
+                                return irb->CreateICmpUGE(left, right);
+                            }
+                        } else {
+                            assert(info->type == Ast_Type_Info::FLOAT);
+                            return irb->CreateFCmpUGE(left, right);
+                        }
+                    }
+                    
+                    case '<': {
+                        auto info = get_type_info(bin->left);
+                        if (is_int_type(info)) {
+                            if (info->is_signed) {
+                                return irb->CreateICmpSLT(left, right);
+                            } else {
+                                return irb->CreateICmpULT(left, right);
+                            }
+                        } else {
+                            assert(info->type == Ast_Type_Info::FLOAT);
+                            return irb->CreateFCmpULT(left, right);
+                        }
+                    }
+                    
+                    case '>': {
+                        auto info = get_type_info(bin->left);
+                        if (is_int_type(info)) {
+                            if (info->is_signed) {
+                                return irb->CreateICmpSGT(left, right);
+                            } else {
+                                return irb->CreateICmpUGT(left, right);
+                            }
+                        } else {
+                            assert(info->type == Ast_Type_Info::FLOAT);
+                            return irb->CreateFCmpUGT(left, right);
+                        }
+                    }
                     default: assert(false);
                 }
             }
@@ -410,9 +451,15 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
         
         case AST_DECLARATION: {
             auto decl = static_cast<Ast_Declaration *>(expression);
+            auto decl_value = get_value_for_decl(decl);
+            
             if (decl->initializer_expression) {
                 auto value = emit_expression(decl->initializer_expression);
-                irb->CreateStore(value, get_value_for_decl(decl));
+                irb->CreateStore(value, decl_value);
+            } else {
+                // if a declaration does not have an initializer, initialize to 0
+                auto type = decl_value->getType()->getPointerElementType();
+                irb->CreateStore(Constant::getNullValue(type), decl_value);
             }
             return nullptr;
         }
@@ -443,6 +490,9 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                         } else {
                             args[i] = irb->CreateZExt(value, type_i32);
                         }
+                    } else if (type->isFloatTy() && type->getPrimitiveSizeInBits() < type_f64->getPrimitiveSizeInBits()) {
+                        assert(get_type_info(arg)->type == Ast_Type_Info::FLOAT);
+                        args[i] = irb->CreateFPExt(value, type_f64);
                     }
                 }
             }
@@ -498,15 +548,15 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 return value;
             } else if (is_float_type(src) && is_int_type(dst)) {
                 if (dst->is_signed) {
-                    return irb->CreateSIToFP(value, dst_type);
-                } else {
-                    return irb->CreateUIToFP(value, dst_type);
-                }
-            } else if (is_int_type(src) && is_float_type(dst)) {
-                if (src->is_signed) {
                     return irb->CreateFPToSI(value, dst_type);
                 } else {
                     return irb->CreateFPToUI(value, dst_type);
+                }
+            } else if (is_int_type(src) && is_float_type(dst)) {
+                if (src->is_signed) {
+                    return irb->CreateSIToFP(value, dst_type);
+                } else {
+                    return irb->CreateUIToFP(value, dst_type);
                 }
             } else if (is_pointer_type(src) && is_pointer_type(dst)) {
                 return irb->CreatePointerCast(value, dst_type);
@@ -563,7 +613,7 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             
             auto current_block = irb->GetInsertBlock();
             
-            BasicBlock *next_block = BasicBlock::Create(*llvm_context, "", current_block->getParent());
+            BasicBlock *next_block = BasicBlock::Create(*llvm_context, "loop_exit", current_block->getParent());
             BasicBlock *loop_header = BasicBlock::Create(*llvm_context, "loop_header", current_block->getParent());
             BasicBlock *loop_body = BasicBlock::Create(*llvm_context, "loop_body", current_block->getParent());
             
@@ -579,8 +629,8 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             irb->SetInsertPoint(loop_body);
             if (loop->statement) {
                 emit_expression(loop->statement);
-                irb->SetInsertPoint(loop_body);
-                irb->CreateBr(loop_header);
+                // irb->SetInsertPoint(loop_body);
+                if (!irb->GetInsertBlock()->getTerminator()) irb->CreateBr(loop_header);
             }
             
             irb->SetInsertPoint(next_block);

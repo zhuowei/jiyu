@@ -132,15 +132,24 @@ func read_entire_file(path: string) -> string {
 	return result;
 }
 
+func add_vertex(array: *[..] float, v0: float, v1: float, v2: float) {
+	array_add(array, v0);
+	array_add(array, v1);
+	array_add(array, v2);
+}
+
 func main() {
 	glfwInit();
 
 	var array: [..] float;
-	array_reserve(*array, 10);
+	add_vertex(*array,  0,  1, 0);	
+	add_vertex(*array,  1, cast(float) -1, 0);
+	add_vertex(*array, cast(float) -1, cast(float) -1, 0);
+
 	printf("array.count    : %d\n".data, array.count);
 	printf("array.allocated: %d\n".data, array.allocated);
 
-	var window = glfwCreateWindow(640, 480, "Hello, Sailor!".data, 0, 0);
+	var window = glfwCreateWindow(1920, 1080, "Hello, Sailor!".data, 0, 0);
 	
 	printf("String length: %d\n".data, c_style_strlen("Hello".data));
 
@@ -150,8 +159,16 @@ func main() {
 	glfwMakeContextCurrent(window);
 
 	while glfwWindowShouldClose(window) == false {
-		glClearColor(0, 1, 0, 1);
+		glClearColor(0, 0, 0, 1);
 		glClear(GL_COLOR_BUFFER_BIT);
+
+		glBegin(GL_TRIANGLES);
+		var i: int64 = 0;
+		while i < array.count {
+			glVertex3f(array[i+0], array[i+1], array[i+2]);
+			i = i + 3;
+		}
+		glEnd();
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
@@ -180,3 +197,30 @@ func array_reserve(array: *[..] float, _amount: int) {
 	array.allocated = amount;
 }
 
+func array_resize(array: *[..] float, _amount: int) {
+	array_reserve(array, _amount);
+	array.count = _amount;
+}
+
+func array_add(array: *[..] float, item: float) {
+	if (array.count+1 >= array.allocated) array_reserve(array, cast(int) array.allocated + NEW_MEM_CHUNK_ELEMENT_COUNT);
+
+	array.count = array.count + 1;
+	(<<array)[array.count-1] = item;
+}
+
+func array_reset(array: *[..] float) {
+	array.count = 0;
+	array.allocated = 0;
+
+	if array.data != null free(array.data);
+	array.data = null;
+}
+
+func test_loops() {
+	while true {
+		while true {
+
+		}
+	}
+}
