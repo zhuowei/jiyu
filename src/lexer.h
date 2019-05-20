@@ -64,6 +64,7 @@ struct Token {
         KEYWORD_NULL,
         
         KEYWORD_CAST,
+        KEYWORD_SIZEOF,
         
         TAG_C_FUNCTION,
         

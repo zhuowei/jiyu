@@ -39,7 +39,7 @@ Ast_Type_Info *make_array_type(Ast_Type_Info *element, array_count_type count, b
         if (!is_dynamic) {
             info->size = 16; // @Cleanup hardcoded value
         } else {
-            assert(false); // @Incomplete
+            info->size = 24; // @Cleanup hardcoded value
         }
     }
     return info;
@@ -113,6 +113,7 @@ void Compiler::init() {
     atom_data   = make_atom(to_string("data"));
     atom_length = make_atom(to_string("length"));
     atom_count  = make_atom(to_string("count"));
+    atom_allocated = make_atom(to_string("allocated"));
 }
 
 Atom *Compiler::make_atom(String name) {

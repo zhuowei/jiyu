@@ -187,11 +187,11 @@ bool expression_is_lvalue(Ast_Expression *expression, bool parent_wants_lvalue) 
             auto un = static_cast<Ast_Unary_Expression *>(expression);
             if (un->operator_type == Token::STAR) {
                 auto expr = expression_is_lvalue(un->expression, true);
-                return !expr; // I think this is correct, but I havent thought about it deeply -josh 18 April 2019
+                return expr; // I think this is correct, but I havent thought about it deeply -josh 18 April 2019
             } else if (un->operator_type == Token::DEREFERENCE_OR_SHIFT) {
                 auto expr = expression_is_lvalue(un->expression, false);
-                if (parent_wants_lvalue && expr) return true;
-                return false; // I think this is correct, but I havent thought about it deeply -josh 18 April 2019
+                if (parent_wants_lvalue) return true;
+                return expr; // I think this is correct, but I havent thought about it deeply -josh 18 April 2019
             } else {
                 assert(false);
             }
@@ -559,6 +559,8 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     bool allow_coerce_to_ptr_void = true;
                     typecheck_and_implicit_cast_expression_pair(param, value, nullptr, &value, allow_coerce_to_ptr_void);
                     
+					if (compiler->errors_reported) return;
+                    
                     if (!types_match(value->type_info, param->type_info)) {
                         compiler->report_error(value, "Mismatch in function call argument types.\n");
                         return;
@@ -586,6 +588,17 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         case AST_DEREFERENCE: {
             auto deref = static_cast<Ast_Dereference *>(expression);
             typecheck_expression(deref->left);
+            
+            if (get_type_info(deref->left)->type == Ast_Type_Info::POINTER) {
+                // we allow you to dereference once through a pointer
+                // here we insert some desugaring that expands pointer.field into (<<pointer).field
+                
+                auto un = make_unary(Token::DEREFERENCE_OR_SHIFT, deref->left);
+                un->text_span = deref->left->text_span;
+                
+                typecheck_expression(un);
+                deref->left = un; // Dont set substitution here, otherwise we'll infinite loop
+            }
             
             
             assert(get_type_info(deref->left));
@@ -623,8 +636,6 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 }
             } else if (left_type->type == Ast_Type_Info::ARRAY) {
                 if (left_type->array_element_count == -1) {
-                    assert(left_type->is_dynamic == false);
-                    
                     if (field_atom == compiler->atom_data) {
                         deref->element_path_index = 0;
                         deref->byte_offset = 0;
@@ -637,6 +648,13 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                         // @Hack @Cleanup
                         // @Hack @Cleanup
                         deref->byte_offset = 8; // @TargetInfo
+                        deref->type_info = compiler->type_array_count;
+                    } else if (left_type->is_dynamic && field_atom == compiler->atom_allocated) {
+                        deref->element_path_index = 2;
+                        // @Hack @Cleanup
+                        // @Hack @Cleanup
+                        // @Hack @Cleanup
+                        deref->byte_offset = 16; // @TargetInfo
                         deref->type_info = compiler->type_array_count;
                     } else {
                         String field_name = field_atom->name;
@@ -839,6 +857,23 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             else if (array_type->type == Ast_Type_Info::POINTER) deref->type_info = array_type->pointer_to;
             else assert(false);
             
+            return;
+        }
+        
+        case AST_SIZEOF: {
+            Ast_Sizeof *size = static_cast<Ast_Sizeof *>(expression);
+            
+            if (!size->target_type_inst) {
+                compiler->report_error(size, "sizeof() must specify a type to take the size of.\n");
+                return;
+            }
+            
+            auto type = resolve_type_inst(size->target_type_inst);
+            size->type_info = type;
+            
+            auto lit = make_integer_literal(type->size, compiler->type_int32);
+            lit->text_span = size->text_span;
+            size->substitution = lit;
             return;
         }
     }

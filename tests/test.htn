@@ -1,6 +1,27 @@
 func @c_function exit(value: int);
 func @c_function _write(fd: int, buf: *uint8, count: int);
+
 func @c_function printf(fmt: *uint8, temporary_c_vararg);
+
+typealias FILE = void;
+func @c_function fopen(path: c_string, mode: c_string) -> *FILE;
+func @c_function fclose(file: *FILE) -> int32;
+func @c_function ftell(file: *FILE) -> int32; // long int, this should be int32 on Windows but s64 on Linux/Mac
+func @c_function fread(ptr: *void, size: size_t, count: size_t, file: *FILE) -> size_t;
+
+let SEEK_SET = 0;
+let SEEK_CUR = 1;
+let SEEK_END = 2;
+
+func @c_function fseek(file: *FILE, offset: int32 /*long int*/, origin: int32);
+
+typealias size_t = uint32; // @FixMe I dont know if this is right
+
+func @c_function malloc(size: size_t) -> *void;
+func @c_function free(ptr: *void);
+
+typealias c_string = *uint8;
+
 
 func test_func() -> void {
     // @TODO verify that these things all produce expected results.
@@ -26,7 +47,7 @@ func test_func() -> void {
 
     var n7: ***int;
     // THIS IS SUPPOSED TO FAIL
-    // var n8 = *  << << n7;
+    var n8 = *  << <<  << n7;
 }
 
 func main (arg: int, arg2: int) -> void {
@@ -97,4 +118,9 @@ func test_array() {
 
 	printf("array[3] %d\n".data, array[3]);
 	printf("static_array[3] %d\n".data, static_array[3]);
+
+	var dyn: [..] uint8;
+	dyn.data = cast(*uint8) malloc(16);
+	dyn.count = 0;
+	dyn.allocated = 16;
 }

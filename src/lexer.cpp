@@ -115,7 +115,8 @@ Token Lexer::lex_token() {
         
         else if (result.string == to_string("return")) result.type = Token::KEYWORD_RETURN;
         
-        else if (result.string == to_string("cast")) result.type = Token::KEYWORD_CAST;
+        else if (result.string == to_string("cast"))   result.type = Token::KEYWORD_CAST;
+        else if (result.string == to_string("sizeof")) result.type = Token::KEYWORD_SIZEOF;
         
         // @Cleanup we should probably have a "tag" token
         else if (result.string == to_string("@c_function")) result.type = Token::TAG_C_FUNCTION;

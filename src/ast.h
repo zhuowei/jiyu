@@ -26,6 +26,7 @@ enum Ast_Type {
     AST_TYPE_INSTANTIATION,
     AST_TYPE_ALIAS,
     AST_ARRAY_DEREFERENCE,
+    AST_SIZEOF,
 };
 
 struct Ast {
@@ -232,6 +233,11 @@ struct Ast_Cast : Ast_Expression {
     Ast_Cast() { type = AST_CAST; }
     Ast_Type_Instantiation *target_type_inst = nullptr;
     Ast_Expression *expression = nullptr;
+};
+
+struct Ast_Sizeof : Ast_Expression {
+    Ast_Sizeof() { type = AST_SIZEOF; }
+    Ast_Type_Instantiation *target_type_inst = nullptr;
 };
 
 #define AST_NEW(type) (type *)ast_init(this, new type());

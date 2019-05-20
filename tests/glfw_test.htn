@@ -39,6 +39,7 @@ typealias size_t = uint32; // @FixMe I dont know if this is right
 
 func @c_function malloc(size: size_t) -> *void;
 func @c_function free(ptr: *void);
+func @c_function memcpy(dest: *void, src: *void, count: size_t);
 
 // GLFW
 func @c_function glfwInit();
@@ -134,6 +135,11 @@ func read_entire_file(path: string) -> string {
 func main() {
 	glfwInit();
 
+	var array: [..] float;
+	array_reserve(*array, 10);
+	printf("array.count    : %d\n".data, array.count);
+	printf("array.allocated: %d\n".data, array.allocated);
+
 	var window = glfwCreateWindow(640, 480, "Hello, Sailor!".data, 0, 0);
 	
 	printf("String length: %d\n".data, c_style_strlen("Hello".data));
@@ -153,3 +159,24 @@ func main() {
 
 	glfwTerminate();
 }
+
+let NEW_MEM_CHUNK_ELEMENT_COUNT = 16;
+
+func array_reserve(array: *[..] float, _amount: int) {
+	typealias T = float;
+
+	var amount = _amount;
+	if amount <= 0
+		amount = NEW_MEM_CHUNK_ELEMENT_COUNT;
+
+	var new_mem = cast(*T) malloc(amount * sizeof(T));
+
+	if array.data != null {
+		memcpy(new_mem, array.data, cast(size_t) (array.count * sizeof(T)) );
+		free(array.data);
+	}
+
+	array.data = new_mem;
+	array.allocated = amount;
+}
+

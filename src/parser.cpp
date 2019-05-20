@@ -107,6 +107,19 @@ Ast_Expression *Parser::parse_primary_expression() {
         return expr;
     }
     
+    if (token->type == Token::KEYWORD_SIZEOF) {
+        Ast_Sizeof *size = AST_NEW(Ast_Sizeof);
+        next_token();
+        
+        if (!expect_and_eat((Token::Type) '(')) return size;
+        
+        size->target_type_inst = parse_type_inst();
+        
+        if (!expect_and_eat((Token::Type) ')')) return size;
+        
+        return size;
+    }
+    
     return nullptr;
 }
 
@@ -118,10 +131,9 @@ Ast_Expression *Parser::parse_postfix_expression() {
     while (token->type != Token::END) {
         
         if (token->type == Token::LEFT_PAREN) {
-            next_token();
-            
             // transform this into a function call
             Ast_Function_Call *call = AST_NEW(Ast_Function_Call);
+            next_token();
             
             // @HACK @HACK @HACK
             // @HACK @HACK @HACK
@@ -153,9 +165,8 @@ Ast_Expression *Parser::parse_postfix_expression() {
             
             sub_expression = call;
         } else if (token->type == Token::DOT) {
-            next_token();
-            
             Ast_Dereference *deref = AST_NEW(Ast_Dereference);
+            next_token();
             
             // @TODO do other languages let you use anything other than an identifier for a field selection?
             auto right = parse_identifier();
@@ -239,9 +250,9 @@ Ast_Expression *Parser::parse_multiplicative_expression() {
         if (token->type == Token::STAR
             || token->type == Token::SLASH
             || token->type == Token::PERCENT) {
+            Ast_Binary_Expression *bin = AST_NEW(Ast_Binary_Expression);
             next_token();
             
-            Ast_Binary_Expression *bin = AST_NEW(Ast_Binary_Expression);
             bin->operator_type = token->type;
             bin->left = sub_expression;
             

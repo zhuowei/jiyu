@@ -167,12 +167,15 @@ Type *LLVM_Generator::get_type(Ast_Type_Info *type) {
             
             return ArrayType::get(element, type->array_element_count);
         } else {
+            // @Cleanup this should be type_array_count or something
+            auto count = type_string_length;
+            auto data  = element->getPointerTo();
+            
             if (!type->is_dynamic) {
-                // @Cleanup this should be type_array_count or something
-                auto count = type_string_length;
-                auto data  = element->getPointerTo();
-                
                 return StructType::get(*llvm_context, {data, count}, false);
+            } else {
+                auto allocated = count;
+                return StructType::get(*llvm_context, {data, count, allocated}, false);
             }
         }
     }
@@ -271,7 +274,7 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             } else if (un->operator_type == Token::DEREFERENCE_OR_SHIFT) {
                 auto value = emit_expression(un->expression, is_lvalue);
                 
-                if (!is_lvalue) value = irb->CreateLoad(value);
+                value = irb->CreateLoad(value);
                 return value;
             } else if (un->operator_type == Token::MINUS) {
                 auto value = emit_expression(un->expression);
@@ -295,6 +298,8 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 Value *left  = emit_expression(bin->left,  true);
                 Value *right = emit_expression(bin->right, false);
                 
+				left->dump();
+				right->dump();
                 irb->CreateStore(right, left);
                 return nullptr;
             } else {
@@ -307,7 +312,7 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                     case Token::PERCENT: assert(false); // @Incomplete
                     case Token::SLASH: {
                         auto info = get_type_info(bin->left);
-                        if (info->type == Ast_Type_Info::INTEGER) {
+                        if (is_int_type(info)) {
                             if (info->is_signed) {
                                 return irb->CreateSDiv(left, right);
                             } else {
@@ -322,8 +327,8 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                         auto left_type = get_type_info(bin->left);
                         auto right_type = get_type_info(bin->right);
                         
-                        if (left_type->type == Ast_Type_Info::POINTER &&
-                            right_type->type == Ast_Type_Info::INTEGER) {
+                        if (is_pointer_type(left_type) &&
+                            is_int_type(right_type)) {
                             return irb->CreateGEP(left, {right});
                         } else if (is_pointer_type(left_type) && is_pointer_type(right_type)) {
                             Value *left_int  = irb->CreatePtrToInt(left,  type_intptr);
@@ -351,6 +356,19 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                     }
                     case Token::EQ_OP: return irb->CreateICmpEQ(left, right);
                     case Token::NE_OP: return irb->CreateICmpNE(left, right);
+                    case Token::LE_OP: {
+                        auto info = get_type_info(bin->left);
+                        if (is_int_type(info)) {
+                            if (info->is_signed) {
+                                return irb->CreateICmpSLE(left, right);
+                            } else {
+                                return irb->CreateICmpULE(left, right);
+                            }
+                        } else {
+                            assert(info->type == Ast_Type_Info::FLOAT);
+                            return irb->CreateFCmpULE(left, right);
+                        }
+                    }
                     default: assert(false);
                 }
             }
