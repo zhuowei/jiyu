@@ -112,6 +112,7 @@ Token Lexer::lex_token() {
         else if (result.string == to_string("while"))  result.type = Token::KEYWORD_WHILE;
         else if (result.string == to_string("break"))  result.type = Token::KEYWORD_BREAK;
         else if (result.string == to_string("continue")) result.type = Token::KEYWORD_CONTINUE;
+        else if (result.string == to_string("for"))    result.type = Token::KEYWORD_FOR;
         
         else if (result.string == to_string("return")) result.type = Token::KEYWORD_RETURN;
         

@@ -19,6 +19,49 @@ func to_string(input: c_string) -> string {
 }
 
 
+let NEW_MEM_CHUNK_ELEMENT_COUNT = 16;
+
+func array_reserve(array: *[..] float, _amount: int) {
+	typealias T = float;
+
+	var amount = _amount;
+	if amount <= 0
+		amount = NEW_MEM_CHUNK_ELEMENT_COUNT;
+
+	var new_mem = cast(*T) malloc(amount * sizeof(T));
+
+	if array.data != null {
+		memcpy(new_mem, array.data, cast(size_t) (array.count * sizeof(T)) );
+		free(array.data);
+	}
+
+	array.data = new_mem;
+	array.allocated = amount;
+}
+
+func array_resize(array: *[..] float, _amount: int) {
+	array_reserve(array, _amount);
+	array.count = _amount;
+}
+
+func array_add(array: *[..] float, item: float) {
+	if (array.count+1 >= array.allocated) array_reserve(array, cast(int) 
+	
+	array.allocated + NEW_MEM_CHUNK_ELEMENT_COUNT);
+
+	array.count = array.count + 1;
+	(<<array)[array.count-1] = item;
+}
+
+func array_reset(array: *[..] float) {
+	array.count = 0;
+	array.allocated = 0;
+
+	if array.data != null free(array.data);
+	array.data = null;
+}
+
+
 
 // C library
 func @c_function printf(fmt: *uint8, temporary_c_vararg);
@@ -142,9 +185,15 @@ func main() {
 	glfwInit();
 
 	var array: [..] float;
+	
 	add_vertex(*array,  0,  1, 0);	
-	add_vertex(*array,  1, cast(float) -1, 0);
-	add_vertex(*array, cast(float) -1, cast(float) -1, 0);
+	add_vertex(*array,  1,  -1, 0);
+	add_vertex(*array, -1,  -1, 0);
+
+	for 0..array.count-1 {
+		var a = array[it];
+		printf("For: %d, %f.\n".data, it, a);
+	}
 
 	printf("array.count    : %d\n".data, array.count);
 	printf("array.allocated: %d\n".data, array.allocated);
@@ -175,52 +224,4 @@ func main() {
 	}
 
 	glfwTerminate();
-}
-
-let NEW_MEM_CHUNK_ELEMENT_COUNT = 16;
-
-func array_reserve(array: *[..] float, _amount: int) {
-	typealias T = float;
-
-	var amount = _amount;
-	if amount <= 0
-		amount = NEW_MEM_CHUNK_ELEMENT_COUNT;
-
-	var new_mem = cast(*T) malloc(amount * sizeof(T));
-
-	if array.data != null {
-		memcpy(new_mem, array.data, cast(size_t) (array.count * sizeof(T)) );
-		free(array.data);
-	}
-
-	array.data = new_mem;
-	array.allocated = amount;
-}
-
-func array_resize(array: *[..] float, _amount: int) {
-	array_reserve(array, _amount);
-	array.count = _amount;
-}
-
-func array_add(array: *[..] float, item: float) {
-	if (array.count+1 >= array.allocated) array_reserve(array, cast(int) array.allocated + NEW_MEM_CHUNK_ELEMENT_COUNT);
-
-	array.count = array.count + 1;
-	(<<array)[array.count-1] = item;
-}
-
-func array_reset(array: *[..] float) {
-	array.count = 0;
-	array.allocated = 0;
-
-	if array.data != null free(array.data);
-	array.data = null;
-}
-
-func test_loops() {
-	while true {
-		while true {
-
-		}
-	}
 }

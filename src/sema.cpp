@@ -167,6 +167,12 @@ Ast_Unary_Expression *make_unary(Token::Type op, Ast_Expression *subexpr) {
     return un;
 }
 
+Ast_Identifier *make_identifier(Atom *name) {
+    Ast_Identifier *ident = new Ast_Identifier();
+    ident->name = name;
+    return ident;
+}
+
 bool expression_is_lvalue(Ast_Expression *expression, bool parent_wants_lvalue) {
     while (expression->substitution) expression = expression->substitution;
     
@@ -360,11 +366,11 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             // @TODO prevent use of a declaration in it's initializer
             if (decl->initializer_expression) typecheck_expression(decl->initializer_expression, get_type_info(decl));
             
-            if (decl->is_let && !decl->is_function_argument && !decl->initializer_expression) {
+            if (decl->is_let && !decl->is_readonly_variable && !decl->initializer_expression) {
                 compiler->report_error(decl, "let constant must be initialized by an expression.\n");
             }
             
-            if (decl->is_let && decl->initializer_expression) {
+            if (decl->is_let && !decl->is_readonly_variable && decl->initializer_expression) {
                 if (!resolves_to_literal_value(decl->initializer_expression)) {
                     compiler->report_error(decl->initializer_expression, "let constant can only be initialized by a literal expression.\n");
                 }
@@ -752,6 +758,78 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             return;
         }
         
+        case AST_FOR: {
+            auto _for = static_cast<Ast_For *>(expression);
+            if (!_for->initial_iterator_expression) {
+                compiler->report_error(_for, "'for' must be followed by an expression.\n");
+                return;
+            }
+            
+            typecheck_expression(_for->initial_iterator_expression);
+            
+            if (compiler->errors_reported) return;
+            
+            if (!_for->upper_range_expression) {
+                compiler->report_error(_for, "'for' must specify an upper-range. Ex: for 0..1\n");
+                return;
+            }
+            
+            typecheck_expression(_for->upper_range_expression);
+            if (compiler->errors_reported) return;
+            
+            auto init_expr = _for->initial_iterator_expression;
+            auto upper_expr = _for->upper_range_expression;
+            bool allow_coerce_to_ptr_void = false;
+            typecheck_and_implicit_cast_expression_pair(init_expr, upper_expr, &_for->initial_iterator_expression, &_for->upper_range_expression, allow_coerce_to_ptr_void);
+            
+            auto init_type = get_type_info(_for->initial_iterator_expression);
+            if (init_type->type != Ast_Type_Info::INTEGER) {
+                // @Incomplete
+                compiler->report_error(_for->initial_iterator_expression, "'for' may only be used to iterate over a range of integers at this time.\n");
+                return;
+            }
+            
+            auto upper_type = get_type_info(_for->upper_range_expression);
+            if (upper_type->type != Ast_Type_Info::INTEGER) {
+                compiler->report_error(_for->upper_range_expression, "'for' upper-range must be an integer expression.\n");
+                return;
+            }
+            
+            if (!types_match(init_type, upper_type)) {
+                compiler->report_error(_for, "'for' lower-range and upper-range types do not match!\n");
+            }
+            
+            if (!_for->iterator_decl) {
+                Ast_Declaration *decl = new Ast_Declaration();
+                decl->text_span  = _for->text_span;
+                decl->identifier = make_identifier(compiler->atom_it);
+                decl->initializer_expression = _for->initial_iterator_expression;
+                decl->is_let = true;
+                decl->is_readonly_variable = true;
+                
+                _for->iterator_decl = decl;
+            }
+            
+            typecheck_expression(_for->iterator_decl);
+            if (compiler->errors_reported) return;
+            
+            assert(get_type_info(_for->iterator_decl));
+            
+            // create a temporary scope for the iterator variable
+            Ast_Scope *scope = new Ast_Scope(); // @Leak
+            scope->owning_function = get_current_scope()->owning_function;
+            scope->declarations.add(_for->iterator_decl);
+            
+            scope_stack.add(scope);
+            typecheck_expression(_for->statement);
+            scope_stack.pop();
+            
+            if (compiler->errors_reported) return;
+            
+            _for->type_info = compiler->type_void;
+            return;
+        }
+        
         case AST_SCOPE: {
             auto scope = static_cast<Ast_Scope *>(expression);
             typecheck_scope(scope);
@@ -991,7 +1069,7 @@ void Sema::typecheck_function(Ast_Function *function) {
     // @Incomplete set type info so we don't come through here multiple times
     
     for (auto &a : function->arguments) {
-        a->is_function_argument = true;
+        a->is_readonly_variable = true;
         typecheck_expression(a);
     }
     

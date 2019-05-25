@@ -27,6 +27,7 @@ enum Ast_Type {
     AST_TYPE_ALIAS,
     AST_ARRAY_DEREFERENCE,
     AST_SIZEOF,
+    AST_FOR,
 };
 
 struct Ast {
@@ -200,7 +201,7 @@ struct Ast_Declaration : Ast_Expression {
     Ast_Type_Instantiation *type_inst = nullptr;
     
     bool is_let = false;
-    bool is_function_argument = false;
+    bool is_readonly_variable = false;
 };
 
 struct Ast_Function;
@@ -238,6 +239,17 @@ struct Ast_Cast : Ast_Expression {
 struct Ast_Sizeof : Ast_Expression {
     Ast_Sizeof() { type = AST_SIZEOF; }
     Ast_Type_Instantiation *target_type_inst = nullptr;
+};
+
+struct Ast_For : Ast_Expression {
+    Ast_For() { type = AST_FOR; }
+    
+    Ast_Declaration *iterator_decl = nullptr;
+    
+    Ast_Expression *initial_iterator_expression = nullptr;
+    Ast_Expression *upper_range_expression      = nullptr;
+    
+    Ast_Expression *statement                   = nullptr;
 };
 
 #define AST_NEW(type) (type *)ast_init(this, new type());

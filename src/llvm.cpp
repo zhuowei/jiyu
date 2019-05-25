@@ -298,8 +298,8 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 Value *left  = emit_expression(bin->left,  true);
                 Value *right = emit_expression(bin->right, false);
                 
-				left->dump();
-				right->dump();
+                left->dump();
+                right->dump();
                 irb->CreateStore(right, left);
                 return nullptr;
             } else {
@@ -438,7 +438,7 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             assert(ident->resolved_declaration->type == AST_DECLARATION);
             auto decl = static_cast<Ast_Declaration *>(ident->resolved_declaration);
             
-            if (decl->is_let && !decl->is_function_argument) {
+            if (decl->is_let && !decl->is_readonly_variable) {
                 return emit_expression(decl->initializer_expression);
             }
             
@@ -632,6 +632,54 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 // irb->SetInsertPoint(loop_body);
                 if (!irb->GetInsertBlock()->getTerminator()) irb->CreateBr(loop_header);
             }
+            
+            irb->SetInsertPoint(next_block);
+            break;
+        }
+        
+        case AST_FOR: {
+            auto _for = static_cast<Ast_For *>(expression);
+            
+            auto it_decl = _for->iterator_decl;
+            auto alloca = create_alloca_in_entry(irb, get_type(get_type_info(it_decl)));
+            auto decl_type = get_type_info(it_decl);
+            
+            decl_value_map.add(MakeTuple(it_decl, alloca));
+            emit_expression(it_decl);
+            
+            auto current_block = irb->GetInsertBlock();
+            
+            BasicBlock *next_block = BasicBlock::Create(*llvm_context, "for_exit", current_block->getParent());
+            BasicBlock *loop_header = BasicBlock::Create(*llvm_context, "for_header", current_block->getParent());
+            BasicBlock *loop_body = BasicBlock::Create(*llvm_context, "for_body", current_block->getParent());
+            
+            
+            irb->CreateBr(loop_header);
+            
+            irb->SetInsertPoint(loop_header);
+            // emit the condition in the loop header so that it always executes when we loop back around
+            auto upper = emit_expression(_for->upper_range_expression);
+            auto it = irb->CreateLoad(alloca);
+            assert(decl_type->type == Ast_Type_Info::INTEGER);
+            
+            Value *cond = nullptr;
+            if (decl_type->is_signed) {
+                cond = irb->CreateICmpSLE(it, upper);
+            } else {
+                cond = irb->CreateICmpULE(it, upper);
+            }
+            
+            irb->SetInsertPoint(loop_header);
+            irb->CreateCondBr(cond, loop_body, next_block);
+            
+            irb->SetInsertPoint(loop_body);
+            if (_for->statement) {
+                emit_expression(_for->statement);
+                // irb->SetInsertPoint(loop_body);
+            }
+            
+            irb->CreateStore(irb->CreateAdd(it, ConstantInt::get(get_type(decl_type), 1)), alloca);
+            if (!irb->GetInsertBlock()->getTerminator()) irb->CreateBr(loop_header);
             
             irb->SetInsertPoint(next_block);
             break;

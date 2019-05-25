@@ -114,6 +114,7 @@ void Compiler::init() {
     atom_length = make_atom(to_string("length"));
     atom_count  = make_atom(to_string("count"));
     atom_allocated = make_atom(to_string("allocated"));
+    atom_it = make_atom(to_string("it"));
 }
 
 Atom *Compiler::make_atom(String name) {

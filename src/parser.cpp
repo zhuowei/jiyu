@@ -643,6 +643,7 @@ Ast_Expression *Parser::parse_statement() {
         
         _if->condition = parse_expression();
         if (!_if->condition) {
+            // @Cleanup move to sema?
             compiler->report_error(_if, "'if' must be followed by an expression.\n");
             return _if;
         }
@@ -657,6 +658,28 @@ Ast_Expression *Parser::parse_statement() {
         }
         
         return _if;
+    }
+    
+    if (token->type == Token::KEYWORD_FOR) {
+        Ast_For *_for = AST_NEW(Ast_For);
+        next_token();
+        
+        _for->initial_iterator_expression = parse_expression();
+        
+        token = peek_token();
+        if (token->type == Token::DOTDOT) {
+            next_token();
+            
+            if (!_for->initial_iterator_expression) {
+                compiler->report_error(token, ".. operator must be preceeded by an expression.\n");
+                return _for;
+            }
+            
+            _for->upper_range_expression = parse_expression();
+        }
+        
+        _for->statement = parse_statement();
+        return _for;
     }
     
     if (token->type == Token::KEYWORD_WHILE) {

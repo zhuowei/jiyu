@@ -41,6 +41,7 @@ struct Token {
         KEYWORD_WHILE,
         KEYWORD_BREAK,
         KEYWORD_CONTINUE,
+        KEYWORD_FOR,
         
         KEYWORD_RETURN,
         
