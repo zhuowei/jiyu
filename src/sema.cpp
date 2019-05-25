@@ -114,6 +114,21 @@ Ast_Expression *cast_float_to_float(Ast_Expression *expr, Ast_Type_Info *target)
     return cast;
 }
 
+Ast_Expression *cast_int_to_float(Ast_Expression *expr, Ast_Type_Info *target) {
+    while (expr->substitution) expr = expr->substitution;
+    
+    assert(expr->type_info->type == Ast_Type_Info::INTEGER);
+    assert(target->type == Ast_Type_Info::FLOAT);
+    
+    Ast_Cast *cast = new Ast_Cast();
+    cast->text_span = expr->text_span;
+    cast->expression = expr;
+    // cast->target_type_info = nullptr;
+    cast->type_info = target;
+    return cast;
+    
+}
+
 Ast_Expression *cast_ptr_to_ptr(Ast_Expression *expr, Ast_Type_Info *target) {
     while (expr->substitution) expr = expr->substitution;
     
@@ -235,7 +250,11 @@ void Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast
             } else if (ltype->size > rtype->size) {
                 right = cast_float_to_float(right, ltype);
             }
-        } else if (allow_coerce_to_ptr_void && is_pointer_type(ltype) && is_pointer_type(rtype)) {
+        } else if (is_float_type(ltype) && is_int_type(rtype)) {
+            right = cast_int_to_float(right, ltype);
+        } else if (is_int_type(ltype) && is_float_type(rtype)) {
+            left = cast_int_to_float(left, rtype);
+        }else if (allow_coerce_to_ptr_void && is_pointer_type(ltype) && is_pointer_type(rtype)) {
             
             // @Note you're only allowed to coerce right-to-left here, meaning if the right-expression is *void, the left-expression cannot coerce away from whatever ptr type it is.
             if (type_points_to_void_eventually(ltype)) {
@@ -566,7 +585,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     bool allow_coerce_to_ptr_void = true;
                     typecheck_and_implicit_cast_expression_pair(param, value, nullptr, &value, allow_coerce_to_ptr_void);
                     
-					if (compiler->errors_reported) return;
+                    if (compiler->errors_reported) return;
                     
                     if (!types_match(value->type_info, param->type_info)) {
                         compiler->report_error(value, "Mismatch in function call argument types.\n");
