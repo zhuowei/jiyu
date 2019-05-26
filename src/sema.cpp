@@ -20,6 +20,14 @@ s32 get_levels_of_indirection(Ast_Type_Info *info) {
     return count;
 }
 
+bool type_is_iterable(Ast_Type_Info *info) {
+    if (info->type == Ast_Type_Info::ARRAY) return true;
+    
+    // @Incomplete test for structs containing .count member and supports [] overloading.
+    
+    return false;
+}
+
 bool type_points_to_void_eventually(Ast_Type_Info *ptr) {
     while (ptr) {
         if (ptr->type == Ast_Type_Info::POINTER) {
@@ -151,6 +159,13 @@ Ast_Literal *make_integer_literal(s64 value, Ast_Type_Info *type_info) {
     return lit;
 }
 
+
+Ast_Identifier *make_identifier(Atom *name) {
+    Ast_Identifier *ident = new Ast_Identifier();
+    ident->name = name;
+    return ident;
+}
+
 // @Note MUST typecheck the return value of this!!!
 Ast_Array_Dereference *make_array_index(Ast_Expression *array, Ast_Expression *index) {
     Ast_Array_Dereference *deref = new Ast_Array_Dereference();
@@ -160,17 +175,23 @@ Ast_Array_Dereference *make_array_index(Ast_Expression *array, Ast_Expression *i
 }
 
 // @Note MUST typecheck the return value of this!!!
+Ast_Dereference *make_derefence(Ast_Expression *aggregate_expression, Atom *field) {
+    auto ident = make_identifier(field);
+    ident->text_span = aggregate_expression->text_span;
+    
+    Ast_Dereference *deref = new Ast_Dereference();
+    deref->text_span = aggregate_expression->text_span;
+    deref->left = aggregate_expression;
+    deref->field_selector = ident;
+    return deref;
+}
+
+// @Note MUST typecheck the return value of this!!!
 Ast_Unary_Expression *make_unary(Token::Type op, Ast_Expression *subexpr) {
     Ast_Unary_Expression *un = new Ast_Unary_Expression();
     un->operator_type = op;
     un->expression = subexpr;
     return un;
-}
-
-Ast_Identifier *make_identifier(Atom *name) {
-    Ast_Identifier *ident = new Ast_Identifier();
-    ident->name = name;
-    return ident;
 }
 
 bool expression_is_lvalue(Ast_Expression *expression, bool parent_wants_lvalue) {
@@ -770,36 +791,89 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             if (compiler->errors_reported) return;
             
             if (!_for->upper_range_expression) {
-                compiler->report_error(_for, "'for' must specify an upper-range. Ex: for 0..1\n");
-                return;
+                auto init_type = get_type_info(_for->initial_iterator_expression);
+                if (init_type->type == Ast_Type_Info::INTEGER) {
+                    compiler->report_error(_for, "'for' must specify an upper-range. Ex: for 0..1\n");
+                    return;
+                }
+            } else {
+                auto init_type = get_type_info(_for->initial_iterator_expression);
+                if (init_type->type != Ast_Type_Info::INTEGER) {
+                    compiler->report_error(_for, "'..' operator may only be preceeded by an integer expression.\n");
+                    return;
+                }
+                
+                typecheck_expression(_for->upper_range_expression);
+                if (compiler->errors_reported) return;
+                
+                auto init_expr = _for->initial_iterator_expression;
+                auto upper_expr = _for->upper_range_expression;
+                bool allow_coerce_to_ptr_void = false;
+                typecheck_and_implicit_cast_expression_pair(init_expr, upper_expr, &_for->initial_iterator_expression, &_for->upper_range_expression, allow_coerce_to_ptr_void);
+                
+                init_type = get_type_info(_for->initial_iterator_expression);
+                auto upper_type = get_type_info(_for->upper_range_expression);
+                if (upper_type->type != Ast_Type_Info::INTEGER) {
+                    compiler->report_error(_for->upper_range_expression, "'for' upper-range must be an integer expression.\n");
+                    return;
+                }
+                
+                if (!types_match(init_type, upper_type)) {
+                    compiler->report_error(_for, "'for' lower-range and upper-range types do not match!\n");
+                }
             }
-            
-            typecheck_expression(_for->upper_range_expression);
-            if (compiler->errors_reported) return;
-            
-            auto init_expr = _for->initial_iterator_expression;
-            auto upper_expr = _for->upper_range_expression;
-            bool allow_coerce_to_ptr_void = false;
-            typecheck_and_implicit_cast_expression_pair(init_expr, upper_expr, &_for->initial_iterator_expression, &_for->upper_range_expression, allow_coerce_to_ptr_void);
             
             auto init_type = get_type_info(_for->initial_iterator_expression);
-            if (init_type->type != Ast_Type_Info::INTEGER) {
+            if (!is_int_type(init_type)) {
                 // @Incomplete
-                compiler->report_error(_for->initial_iterator_expression, "'for' may only be used to iterate over a range of integers at this time.\n");
-                return;
+                bool supports_iteration_interface = type_is_iterable(init_type);
+                
+                if (!supports_iteration_interface) {
+                    compiler->report_error(_for->initial_iterator_expression, "Type of expression in 'for' condition is not iterable. Must be an integer range or a type that supports the iteration-inteface (.count, []).");
+                    return;
+                }
             }
             
-            auto upper_type = get_type_info(_for->upper_range_expression);
-            if (upper_type->type != Ast_Type_Info::INTEGER) {
-                compiler->report_error(_for->upper_range_expression, "'for' upper-range must be an integer expression.\n");
-                return;
-            }
-            
-            if (!types_match(init_type, upper_type)) {
-                compiler->report_error(_for, "'for' lower-range and upper-range types do not match!\n");
+            if (!is_int_type(init_type)) {
+                auto count_expr = make_derefence(_for->initial_iterator_expression, compiler->atom_count);
+                typecheck_expression(count_expr);
+                
+                auto zero = make_integer_literal(0, get_type_info(count_expr));
+                
+                {
+                    Ast_Declaration *decl = new Ast_Declaration();
+                    decl->text_span  = _for->text_span;
+                    decl->identifier = make_identifier(compiler->atom_it_index);
+                    decl->initializer_expression = zero;
+                    decl->is_let = true;
+                    decl->is_readonly_variable = true;
+                    
+                    _for->iterator_index_decl = decl;
+                    
+                    typecheck_expression(_for->iterator_index_decl);
+                    if (compiler->errors_reported) return;
+                }
+                
+                {
+                    auto indexed = make_array_index(_for->initial_iterator_expression, make_identifier(compiler->atom_it_index));
+                    
+                    Ast_Declaration *decl = new Ast_Declaration();
+                    decl->text_span  = _for->text_span;
+                    decl->identifier = make_identifier(compiler->atom_it);
+                    decl->initializer_expression = indexed;
+                    decl->is_let = true;
+                    decl->is_readonly_variable = true;
+                    // decl->type_info = get_type_info(indexed);
+                    
+                    _for->iterator_decl = decl;
+                }
+                
+                assert(_for->upper_range_expression == nullptr);
+                _for->upper_range_expression = count_expr;
             }
             
             if (!_for->iterator_decl) {
+                // for integer ranges only
                 Ast_Declaration *decl = new Ast_Declaration();
                 decl->text_span  = _for->text_span;
                 decl->identifier = make_identifier(compiler->atom_it);
@@ -810,17 +884,19 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 _for->iterator_decl = decl;
             }
             
+            // create a temporary scope for the iterator variable
+            Ast_Scope *scope = new Ast_Scope(); // @Leak
+            scope->owning_function = get_current_scope()->owning_function;
+            scope->declarations.add(_for->iterator_decl);
+            if (_for->iterator_index_decl) scope->declarations.add(_for->iterator_index_decl);
+            
+            scope_stack.add(scope);
+            
             typecheck_expression(_for->iterator_decl);
             if (compiler->errors_reported) return;
             
             assert(get_type_info(_for->iterator_decl));
             
-            // create a temporary scope for the iterator variable
-            Ast_Scope *scope = new Ast_Scope(); // @Leak
-            scope->owning_function = get_current_scope()->owning_function;
-            scope->declarations.add(_for->iterator_decl);
-            
-            scope_stack.add(scope);
             typecheck_expression(_for->statement);
             scope_stack.pop();
             

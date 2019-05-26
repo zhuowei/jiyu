@@ -110,11 +110,12 @@ void Compiler::init() {
     
     type_ptr_void = make_pointer_type(type_void);
     
-    atom_data   = make_atom(to_string("data"));
-    atom_length = make_atom(to_string("length"));
-    atom_count  = make_atom(to_string("count"));
+    atom_data      = make_atom(to_string("data"));
+    atom_length    = make_atom(to_string("length"));
+    atom_count     = make_atom(to_string("count"));
     atom_allocated = make_atom(to_string("allocated"));
-    atom_it = make_atom(to_string("it"));
+    atom_it        = make_atom(to_string("it"));
+    atom_it_index  = make_atom(to_string("it_index"));
 }
 
 Atom *Compiler::make_atom(String name) {

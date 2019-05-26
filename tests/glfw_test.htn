@@ -195,6 +195,10 @@ func main() {
 		printf("For: %d, %f.\n".data, it, a);
 	}
 
+	for array {
+		printf("For (round 2): %d, %f\n".data, it_index, it);
+	}
+
 	printf("array.count    : %d\n".data, array.count);
 	printf("array.allocated: %d\n".data, array.allocated);
 

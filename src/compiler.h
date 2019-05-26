@@ -91,6 +91,7 @@ struct Compiler {
     Atom *atom_count;
     Atom *atom_allocated;
     Atom *atom_it;
+    Atom *atom_it_index;
     
     Compiler() {
         atom_table = new Atom_Table();

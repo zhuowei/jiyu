@@ -244,7 +244,8 @@ struct Ast_Sizeof : Ast_Expression {
 struct Ast_For : Ast_Expression {
     Ast_For() { type = AST_FOR; }
     
-    Ast_Declaration *iterator_decl = nullptr;
+    Ast_Declaration *iterator_decl       = nullptr;
+    Ast_Declaration *iterator_index_decl = nullptr;
     
     Ast_Expression *initial_iterator_expression = nullptr;
     Ast_Expression *upper_range_expression      = nullptr;

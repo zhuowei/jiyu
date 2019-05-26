@@ -641,11 +641,25 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             auto _for = static_cast<Ast_For *>(expression);
             
             auto it_decl = _for->iterator_decl;
-            auto alloca = create_alloca_in_entry(irb, get_type(get_type_info(it_decl)));
+            auto it_alloca = create_alloca_in_entry(irb, get_type(get_type_info(it_decl)));
             auto decl_type = get_type_info(it_decl);
             
-            decl_value_map.add(MakeTuple(it_decl, alloca));
-            emit_expression(it_decl);
+            decl_value_map.add(MakeTuple(it_decl, it_alloca));
+            
+            auto it_index_decl = _for->iterator_index_decl;
+            Ast_Type_Info *it_index_type = nullptr;
+            Value *it_index_alloca = nullptr;
+            if (it_index_decl) {
+                it_index_type = get_type_info(it_index_decl);
+                it_index_alloca = create_alloca_in_entry(irb, get_type(it_index_type));
+                decl_value_map.add(MakeTuple(it_index_decl, it_index_alloca));
+                emit_expression(it_index_decl);
+            } else {
+                it_index_type = decl_type;
+                it_index_alloca = it_alloca;
+                
+                emit_expression(it_decl);
+            }
             
             auto current_block = irb->GetInsertBlock();
             
@@ -658,27 +672,41 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             
             irb->SetInsertPoint(loop_header);
             // emit the condition in the loop header so that it always executes when we loop back around
-            auto upper = emit_expression(_for->upper_range_expression);
-            auto it = irb->CreateLoad(alloca);
-            assert(decl_type->type == Ast_Type_Info::INTEGER);
+            auto it_index = irb->CreateLoad(it_index_alloca);
+            assert(it_index_type->type == Ast_Type_Info::INTEGER);
             
+            auto upper = emit_expression(_for->upper_range_expression);
             Value *cond = nullptr;
-            if (decl_type->is_signed) {
-                cond = irb->CreateICmpSLE(it, upper);
+            if (it_index_decl) {
+                // use < here otherwise, we'll overstep by one.
+                // @Cleanup maybe this should be flagged as a half-open loop
+                // when we support that?
+                if (it_index_type->is_signed) {
+                    cond = irb->CreateICmpSLT(it_index, upper);
+                } else {
+                    cond = irb->CreateICmpULT(it_index, upper);
+                }
             } else {
-                cond = irb->CreateICmpULE(it, upper);
+                if (it_index_type->is_signed) {
+                    cond = irb->CreateICmpSLE(it_index, upper);
+                } else {
+                    cond = irb->CreateICmpULE(it_index, upper);
+                }
             }
             
             irb->SetInsertPoint(loop_header);
             irb->CreateCondBr(cond, loop_body, next_block);
             
             irb->SetInsertPoint(loop_body);
+            if (it_index_decl) {
+                emit_expression(it_decl);
+            }
             if (_for->statement) {
                 emit_expression(_for->statement);
                 // irb->SetInsertPoint(loop_body);
             }
             
-            irb->CreateStore(irb->CreateAdd(it, ConstantInt::get(get_type(decl_type), 1)), alloca);
+            irb->CreateStore(irb->CreateAdd(it_index, ConstantInt::get(get_type(it_index_type), 1)), it_index_alloca);
             if (!irb->GetInsertBlock()->getTerminator()) irb->CreateBr(loop_header);
             
             irb->SetInsertPoint(next_block);
