@@ -86,6 +86,7 @@ Token Lexer::lex_token() {
         else if (result.string == to_string("var"))    result.type = Token::KEYWORD_VAR;
         else if (result.string == to_string("let"))    result.type = Token::KEYWORD_LET;
         else if (result.string == to_string("typealias")) result.type = Token::KEYWORD_TYPEALIAS;
+        else if (result.string == to_string("struct")) result.type = Token::KEYWORD_STRUCT;
         
         else if (result.string == to_string("void"))   result.type = Token::KEYWORD_VOID;
         else if (result.string == to_string("string")) result.type = Token::KEYWORD_STRING;

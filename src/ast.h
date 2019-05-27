@@ -11,6 +11,7 @@ struct Ast_Function;
 struct Ast_Type_Info;
 struct Ast_Identifier;
 struct Ast_Scope;
+struct Ast_Struct;
 
 enum Ast_Type {
     AST_UNINITIALIZED,
@@ -32,6 +33,7 @@ enum Ast_Type {
     AST_ARRAY_DEREFERENCE,
     AST_SIZEOF,
     AST_FOR,
+    AST_STRUCT,
 };
 
 struct Ast {
@@ -89,6 +91,7 @@ struct Ast_Expression : Ast {
 struct Ast_Type_Instantiation : Ast_Expression {
     Ast_Type_Instantiation() { type = AST_TYPE_INSTANTIATION; }
     
+    // @Cleanup maybe, builtin_primitive sort of overlaps with type_value since it is known at the time of parsing.
     Ast_Type_Info *builtin_primitive = nullptr;
     Ast_Type_Instantiation *pointer_to = nullptr;
     Ast_Identifier *typename_identifier = nullptr;
@@ -97,6 +100,7 @@ struct Ast_Type_Instantiation : Ast_Expression {
     Ast_Expression *array_size_expression = nullptr;
     bool array_is_dynamic = false;
     
+    Ast_Type_Info *type_value = nullptr;
 };
 
 struct Ast_Type_Alias : Ast_Expression {
@@ -104,6 +108,12 @@ struct Ast_Type_Alias : Ast_Expression {
     
     Ast_Identifier *identifier = nullptr;
     Ast_Type_Instantiation *internal_type_inst = nullptr;
+};
+
+struct Ast_Struct : Ast_Expression {
+    Ast_Struct() { type = AST_STRUCT; }
+    
+    
 };
 
 struct Ast_Unary_Expression : Ast_Expression {
@@ -256,6 +266,7 @@ struct Ast_For : Ast_Expression {
     Ast_Scope iterator_declaration_scope;
     Ast_Scope body;
 };
+
 
 #define AST_NEW(type) (type *)ast_init(this, new type());
 

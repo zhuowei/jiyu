@@ -34,6 +34,7 @@ struct Token {
         KEYWORD_VAR,
         KEYWORD_LET,
         KEYWORD_TYPEALIAS,
+        KEYWORD_STRUCT,
         
         KEYWORD_IF,
         KEYWORD_ELSE,

@@ -968,6 +968,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         
         case AST_TYPE_ALIAS: {
             auto alias = static_cast<Ast_Type_Alias *>(expression);
+            resolve_type_inst(alias->internal_type_inst);
             alias->type_info = compiler->type_info_type;
             return;
         }
@@ -1050,12 +1051,16 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
 }
 
 Ast_Type_Info *Sema::resolve_type_inst(Ast_Type_Instantiation *type_inst) {
+    if (type_inst->type_value) return type_inst->type_value;
+    
     if (type_inst->pointer_to) {
         auto pointee = resolve_type_inst(type_inst->pointer_to);
-        return make_pointer_type(pointee);
+        type_inst->type_value = make_pointer_type(pointee);
+        return type_inst->type_value;
     }
     
     if (type_inst->builtin_primitive) {
+        type_inst->type_value = type_inst->builtin_primitive;
         return type_inst->builtin_primitive;
     }
     
@@ -1076,11 +1081,11 @@ Ast_Type_Info *Sema::resolve_type_inst(Ast_Type_Instantiation *type_inst) {
         
         if (decl->type == AST_TYPE_ALIAS) {
             auto alias = static_cast<Ast_Type_Alias *>(decl);
-            
-            return resolve_type_inst( alias->internal_type_inst);
+            typecheck_expression(alias);
+            type_inst->type_value = resolve_type_inst(alias->internal_type_inst);
+            return type_inst->type_value;
         } else {
             assert(false);
-            
         }
     }
     
@@ -1110,10 +1115,13 @@ Ast_Type_Info *Sema::resolve_type_inst(Ast_Type_Instantiation *type_inst) {
             }
             
             auto array_type = make_array_type(element, lit->integer_value, false);
-            return array_type;
+            type_inst->type_value = array_type;
+            return type_inst->type_value;
         }
         
-        return make_array_type(element, -1, type_inst->array_is_dynamic);
+        auto array_type = make_array_type(element, -1, type_inst->array_is_dynamic);
+        type_inst->type_value = array_type;
+        return type_inst->type_value;
     }
     
     assert(false);
