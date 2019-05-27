@@ -21,8 +21,8 @@ func to_string(input: c_string) -> string {
 
 let NEW_MEM_CHUNK_ELEMENT_COUNT = 16;
 
-func array_reserve(array: *[..] float, _amount: int) {
-	typealias T = float;
+func array_reserve(array: *[..] Vertex, _amount: int) {
+	typealias T = Vertex;
 
 	var amount = _amount;
 	if amount <= 0
@@ -39,12 +39,12 @@ func array_reserve(array: *[..] float, _amount: int) {
 	array.allocated = amount;
 }
 
-func array_resize(array: *[..] float, _amount: int) {
+func array_resize(array: *[..] Vertex, _amount: int) {
 	array_reserve(array, _amount);
 	array.count = _amount;
 }
 
-func array_add(array: *[..] float, item: float) {
+func array_add(array: *[..] Vertex, item: Vertex) {
 	if (array.count+1 >= array.allocated) array_reserve(array, cast(int) 
 	
 	array.allocated + NEW_MEM_CHUNK_ELEMENT_COUNT);
@@ -53,7 +53,7 @@ func array_add(array: *[..] float, item: float) {
 	(<<array)[array.count-1] = item;
 }
 
-func array_reset(array: *[..] float) {
+func array_reset(array: *[..] Vertex) {
 	array.count = 0;
 	array.allocated = 0;
 
@@ -175,28 +175,49 @@ func read_entire_file(path: string) -> string {
 	return result;
 }
 
+/*
 func add_vertex(array: *[..] float, v0: float, v1: float, v2: float) {
 	array_add(array, v0);
 	array_add(array, v1);
 	array_add(array, v2);
 }
+*/
+
+struct Vertex {
+	var x: float;
+	var y: float;
+	var z: float;
+}
+
+func make_Vertex(x: float, y: float, z: float) -> Vertex {
+	var v: Vertex;
+	v.x = x;
+	v.y = y;
+	v.z = z;
+	return v;
+}
 
 func main() {
 	glfwInit();
 
-	var array: [..] float;
-	
+	var array: [..] Vertex;
+	/*
 	add_vertex(*array,  0,  1, 0);	
 	add_vertex(*array,  1,  -1, 0);
 	add_vertex(*array, -1,  -1, 0);
+	*/
+
+	array_add(*array, make_Vertex( 0, 1, 0));
+	array_add(*array, make_Vertex( 1,-1, 0));
+	array_add(*array, make_Vertex(-1,-1, 0));
 
 	for 0..array.count-1 {
 		var a = array[it];
-		printf("For: %d, %f.\n".data, it, a);
+		printf("For: %d, (%f, %f, %f).\n".data, it, a.x, a.y, a.z);
 	}
 
 	for array {
-		printf("For (round 2): %d, %f\n".data, it_index, it);
+		printf("For (round 2): %d, (%f, %f, %f)\n".data, it_index, it.x, it.y, it.z);
 	}
 
 	printf("array.count    : %d\n".data, array.count);
@@ -216,10 +237,8 @@ func main() {
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		glBegin(GL_TRIANGLES);
-		var i: int64 = 0;
-		while i < array.count {
-			glVertex3f(array[i+0], array[i+1], array[i+2]);
-			i = i + 3;
+		for array {
+			glVertex3f(it.x, it.y, it.z);
 		}
 		glEnd();
 

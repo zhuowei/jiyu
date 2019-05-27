@@ -77,6 +77,14 @@ struct Ast_Type_Info {
     array_count_type array_element_count = -1;
     bool is_dynamic = false; // for array
     
+    Ast_Struct *struct_decl = nullptr;
+    // @Cleanup hmm... is this really necessary? Should we just have all type code just check struct_decl? or is that overstepping what the type information is for..?
+    struct Struct_Member {
+        Atom *name               = nullptr;
+        Ast_Type_Info *type_info = nullptr;
+        bool is_let = false;
+    };
+    Array<Struct_Member> struct_members; // for STRUCT
     // Ast_Function *function;
     
     s64 size = -1;
@@ -86,6 +94,16 @@ struct Ast_Expression : Ast {
     Ast_Type_Info *type_info = nullptr;
     
     Ast_Expression *substitution = nullptr;
+};
+
+struct Ast_Scope : Ast_Expression {
+    Ast_Scope() { type = AST_SCOPE; }
+    Ast_Scope *parent = nullptr;
+    Array<Ast_Expression *> statements;
+    Array<Ast_Expression *> declarations; // really should only contain Ast_Declaration and Ast_Function
+    
+    Ast_Function   *owning_function = nullptr;
+    Ast_Expression *owning_statement = nullptr;
 };
 
 struct Ast_Type_Instantiation : Ast_Expression {
@@ -113,7 +131,10 @@ struct Ast_Type_Alias : Ast_Expression {
 struct Ast_Struct : Ast_Expression {
     Ast_Struct() { type = AST_STRUCT; }
     
+    Ast_Identifier *identifier = nullptr;
+    Ast_Scope member_scope;
     
+    Ast_Type_Info *type_value = nullptr;
 };
 
 struct Ast_Unary_Expression : Ast_Expression {
@@ -216,16 +237,6 @@ struct Ast_Declaration : Ast_Expression {
     
     bool is_let = false;
     bool is_readonly_variable = false;
-};
-
-struct Ast_Scope : Ast_Expression {
-    Ast_Scope() { type = AST_SCOPE; }
-    Ast_Scope *parent = nullptr;
-    Array<Ast_Expression *> statements;
-    Array<Ast_Expression *> declarations; // really should only contain Ast_Declaration and Ast_Function
-    
-    Ast_Function   *owning_function = nullptr;
-    Ast_Expression *owning_statement = nullptr;
 };
 
 struct Ast_Function : Ast_Expression {

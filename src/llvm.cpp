@@ -180,6 +180,18 @@ Type *LLVM_Generator::get_type(Ast_Type_Info *type) {
         }
     }
     
+    if (type->type == Ast_Type_Info::STRUCT) {
+        Array<Type *> member_types;
+        
+        for (auto member : type->struct_members) {
+            if (member.is_let) continue;
+            
+            member_types.add(get_type(member.type_info));
+        }
+        
+        return StructType::get(*llvm_context, ArrayRef<Type *>(member_types.data, member_types.count), false);
+    }
+    
     assert(false);
     return nullptr;
 }
@@ -509,7 +521,9 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             auto lhs = emit_expression(deref->left, true);
             
             assert(deref->element_path_index >= 0);
-            assert(deref->byte_offset >= 0);
+            
+            // @Incomplete
+            // assert(deref->byte_offset >= 0);
             
             auto value = dereference(lhs, deref->element_path_index, is_lvalue);
             return value;

@@ -626,6 +626,14 @@ Ast_Expression *Parser::parse_statement() {
         return alias;
     }
     
+    if (token->type == Token::KEYWORD_STRUCT) {
+        Ast_Struct *_struct = AST_NEW(Ast_Struct);
+        next_token();
+        _struct->identifier = parse_identifier();
+        parse_scope(&_struct->member_scope, true);
+        return _struct;
+    }
+    
     if (token->type == Token::KEYWORD_VAR) {
         auto var = parse_variable_declaration(true);
         if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
@@ -758,9 +766,11 @@ void Parser::parse_scope(Ast_Scope *scope, bool requires_braces, bool only_one_s
         if (stmt) {
             scope->statements.add(stmt);
             
+            // @Cleanup have a is_declaration() function?
             if (stmt->type == AST_DECLARATION ||
                 stmt->type == AST_FUNCTION    ||
-                stmt->type == AST_TYPE_ALIAS) {
+                stmt->type == AST_TYPE_ALIAS  ||
+                stmt->type == AST_STRUCT) {
                 scope->declarations.add(stmt);
             }
         }

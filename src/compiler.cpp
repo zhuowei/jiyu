@@ -22,6 +22,13 @@ bool types_match(Ast_Type_Info *left, Ast_Type_Info *right) {
             left->is_dynamic == right->is_dynamic;
     }
     
+    if (left->type == Ast_Type_Info::STRUCT) {
+        // @Incomplete how would this work for anonymous structs for which a struct declaration doesnt exist? Do we always just create a faux declaration in that case?
+        assert(left->struct_decl);
+        assert(right->struct_decl);
+        return left->struct_decl == right->struct_decl;
+    }
+    
     return true;
 }
 
@@ -50,6 +57,28 @@ Ast_Type_Info *make_pointer_type(Ast_Type_Info *pointee) {
     info->type = Ast_Type_Info::POINTER;
     info->pointer_to = pointee;
     info->size = 8; // @TargetInfo
+    return info;
+}
+
+Ast_Type_Info *make_struct_type(Ast_Struct *_struct) {
+    Ast_Type_Info *info = new Ast_Type_Info();
+    info->type = Ast_Type_Info::STRUCT;
+    
+    for (auto expr : _struct->member_scope.declarations) {
+        assert(expr->type == AST_DECLARATION);
+        
+        // @Cleanup @Hack we need to be able to handle other structs, functions, typealiases or at least punt on them.
+        auto decl = static_cast<Ast_Declaration *>(expr);
+        Ast_Type_Info::Struct_Member member;
+        member.name = decl->identifier->name;
+        member.type_info = decl->type_info;
+        member.is_let = decl->is_let;
+        
+        info->struct_members.add(member);
+    }
+    
+    info->struct_decl = _struct;
+    
     return info;
 }
 

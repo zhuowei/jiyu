@@ -112,6 +112,7 @@ struct Compiler {
 Ast_Type_Info *make_pointer_type(Ast_Type_Info *pointee);
 
 Ast_Type_Info *make_array_type(Ast_Type_Info *element, array_count_type count, bool is_dynamic);
+Ast_Type_Info *make_struct_type(Ast_Struct *_struct);
 
 bool types_match(Ast_Type_Info *left, Ast_Type_Info *right);
 

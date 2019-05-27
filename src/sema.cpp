@@ -322,6 +322,9 @@ Ast_Expression *Sema::find_declaration_for_atom_in_scope(Ast_Scope *scope, Atom 
         } else if (it->type == AST_TYPE_ALIAS) {
             auto alias = static_cast<Ast_Type_Alias *>(it);
             if (alias->identifier->name == atom) return alias;
+        } else if (it->type == AST_STRUCT) {
+            auto _struct = static_cast<Ast_Struct *>(it);
+            if (_struct->identifier->name == atom) return _struct;
         } else {
             assert(false);
         }
@@ -647,7 +650,8 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             // @Incomplete structs
             auto left_type = get_type_info(deref->left);
             if (left_type->type != Ast_Type_Info::STRING &&
-                left_type->type != Ast_Type_Info::ARRAY) {
+                left_type->type != Ast_Type_Info::ARRAY  &&
+                left_type->type != Ast_Type_Info::STRUCT) {
                 // @Incomplete report_error
                 compiler->report_error(deref, "Attempt to dereference a type that is not a string, struct, or array!\n");
                 return;
@@ -724,6 +728,29 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                         String field_name = field_atom->name;
                         compiler->report_error(deref, "No member '%.*s' in known-size array.\n", field_name.length, field_name.data);
                     }
+                }
+            } else if (left_type->type == Ast_Type_Info::STRUCT) {
+                s64 element_index = 0;
+                bool found = false;
+                for (auto member : left_type->struct_members) {
+                    if (member.is_let) continue;
+                    
+                    if (member.name == field_atom) {
+                        found = true;
+                        
+                        deref->element_path_index = element_index;
+                        deref->type_info = member.type_info;
+                        deref->byte_offset = -1; // @Incomplete
+                        break;
+                    }
+                    
+                    element_index += 1;
+                }
+                
+                if (!found) {
+                    String field_name = field_atom->name;
+                    String name = left_type->struct_decl->identifier->name->name;
+                    compiler->report_error(deref, "No member '%.*s' in struct %.*s.\n", field_name.length, field_name.data, name.length, name.data);
                 }
             }
             
@@ -973,6 +1000,14 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             return;
         }
         
+        case AST_STRUCT: {
+            auto _struct = static_cast<Ast_Struct *>(expression);
+            typecheck_scope(&_struct->member_scope);
+            _struct->type_value = make_struct_type(_struct);
+            _struct->type_info = compiler->type_info_type;
+            return;
+        }
+        
         case AST_ARRAY_DEREFERENCE: {
             auto deref = static_cast<Ast_Array_Dereference *>(expression);
             
@@ -1084,6 +1119,10 @@ Ast_Type_Info *Sema::resolve_type_inst(Ast_Type_Instantiation *type_inst) {
             typecheck_expression(alias);
             type_inst->type_value = resolve_type_inst(alias->internal_type_inst);
             return type_inst->type_value;
+        } else if (decl->type == AST_STRUCT) {
+            auto _struct = static_cast<Ast_Struct *>(decl);
+            typecheck_expression(_struct);
+            return _struct->type_value;
         } else {
             assert(false);
         }
