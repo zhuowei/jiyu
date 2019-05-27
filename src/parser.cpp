@@ -18,6 +18,10 @@ Token *Parser::peek_token() {
     return &lexer->tokens[current_token];
 }
 
+Ast_Scope *Parser::get_current_scope() {
+    return scope_stack[scope_stack.count-1];
+}
+
 bool Parser::expect(Token::Type type) {
     Token *token = peek_token();
     
@@ -51,6 +55,7 @@ Ast_Identifier *Parser::parse_identifier() {
     assert(atom);
     
     ident->name = atom;
+    ident->enclosing_scope = get_current_scope();
     return ident;
 }
 
@@ -678,7 +683,9 @@ Ast_Expression *Parser::parse_statement() {
             _for->upper_range_expression = parse_expression();
         }
         
-        _for->statement = parse_statement();
+        _for->iterator_declaration_scope.parent = get_current_scope();
+        _for->body.parent = &_for->iterator_declaration_scope;
+        parse_scope(&_for->body, false, true);
         return _for;
     }
     
@@ -701,6 +708,7 @@ Ast_Expression *Parser::parse_statement() {
         Ast_Return *ret = AST_NEW(Ast_Return);
         next_token();
         
+        ret->owning_function = currently_parsing_function;
         ret->expression = parse_expression();
         
         if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
@@ -708,7 +716,9 @@ Ast_Expression *Parser::parse_statement() {
     }
     
     if (token->type == '{') {
+        auto parent = get_current_scope();
         Ast_Scope *scope = AST_NEW(Ast_Scope);
+        scope->parent = parent;
         parse_scope(scope, true);
         return scope;
     }
@@ -734,7 +744,9 @@ Ast_Expression *Parser::parse_statement() {
     return left;
 }
 
-void Parser::parse_scope(Ast_Scope *scope, bool requires_braces) {
+void Parser::parse_scope(Ast_Scope *scope, bool requires_braces, bool only_one_statement) {
+    scope_stack.add(scope);
+    
     if (requires_braces && !expect_and_eat((Token::Type) '{')) return;
     
     Token *token = peek_token();
@@ -755,10 +767,14 @@ void Parser::parse_scope(Ast_Scope *scope, bool requires_braces) {
         
         if (compiler->errors_reported) return;
         
+        if (only_one_statement) break;
+        
         token = peek_token();
     }
     
     if (requires_braces && !expect_and_eat((Token::Type) '}')) return;
+    
+    scope_stack.pop();
 }
 
 Ast_Declaration *Parser::parse_variable_declaration(bool expect_var_keyword) {
@@ -908,6 +924,12 @@ Ast_Function *Parser::parse_function() {
     expect_and_eat(Token::KEYWORD_FUNC);
     
     Ast_Function *function = AST_NEW(Ast_Function);
+    function->arguments_scope.parent = get_current_scope();
+    
+    Ast_Function *old_function = currently_parsing_function;
+    
+    currently_parsing_function = function;
+    
     
     Token *token = peek_token();
     if (token->type == Token::TAG_C_FUNCTION) {
@@ -947,6 +969,7 @@ Ast_Function *Parser::parse_function() {
         if (decl) {
             decl->is_let = true;
             function->arguments.add(decl);
+            function->arguments_scope.declarations.add(decl);
         }
         
         if (compiler->errors_reported) return nullptr;
@@ -978,7 +1001,9 @@ Ast_Function *Parser::parse_function() {
     
     
     if (peek_token()->type == '{') {
+        auto parent = get_current_scope();
         Ast_Scope *scope = AST_NEW(Ast_Scope);
+        scope->parent = &function->arguments_scope;;
         parse_scope(scope, true);
         function->scope = scope;
     } else {
@@ -986,5 +1011,6 @@ Ast_Function *Parser::parse_function() {
     }
     
     function->identifier = ident;
+    currently_parsing_function = old_function;
     return function;
 }

@@ -15,15 +15,11 @@ struct Ast_Type_Instantiation;
 struct Sema {
     Compiler *compiler;
     
-    Array<Ast_Scope *> scope_stack;
-    
     Sema(Compiler *compiler) {
         this->compiler = compiler;
     }
     
-    Ast_Scope *get_current_scope();
-    
-    Ast_Expression *find_declaration_for_atom(Atom *atom);
+    Ast_Expression *find_declaration_for_atom(Atom *atom, Ast_Scope *start);
     Ast_Expression *find_declaration_for_atom_in_scope(Ast_Scope *scope, Atom *atom);
     
     Ast_Type_Info *resolve_type_inst(Ast_Type_Instantiation *type_inst);

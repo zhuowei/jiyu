@@ -14,6 +14,9 @@ struct Parser {
     Lexer *lexer;
     array_count_type current_token = 0;
     
+    Array<Ast_Scope *> scope_stack;
+    Ast_Function *currently_parsing_function = nullptr;
+    
     Parser(Lexer *lexer) {
         this->lexer = lexer;
         this->compiler = lexer->compiler;
@@ -21,6 +24,8 @@ struct Parser {
     
     Token *next_token();
     Token *peek_token();
+    
+    Ast_Scope *get_current_scope();
     
     bool expect(Token::Type type);
     bool expect_and_eat(Token::Type type);
@@ -50,7 +55,7 @@ struct Parser {
     Ast_Type_Instantiation *parse_type_inst();
     
     Ast_Declaration *parse_variable_declaration(bool expect_var_keyword);
-    void parse_scope(Ast_Scope *scope, bool requires_braces);
+    void parse_scope(Ast_Scope *scope, bool requires_braces, bool only_one_statement = false);
     Ast_Function *parse_function();
 };
 

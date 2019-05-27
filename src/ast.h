@@ -7,6 +7,10 @@
 
 struct Atom;
 struct Ast_Declaration;
+struct Ast_Function;
+struct Ast_Type_Info;
+struct Ast_Identifier;
+struct Ast_Scope;
 
 enum Ast_Type {
     AST_UNINITIALIZED,
@@ -82,9 +86,6 @@ struct Ast_Expression : Ast {
     Ast_Expression *substitution = nullptr;
 };
 
-struct Ast_Type_Info;
-struct Ast_Identifier;
-
 struct Ast_Type_Instantiation : Ast_Expression {
     Ast_Type_Instantiation() { type = AST_TYPE_INSTANTIATION; }
     
@@ -123,6 +124,8 @@ struct Ast_Binary_Expression : Ast_Expression {
 struct Ast_Identifier : Ast_Expression {
     Ast_Identifier() { type = AST_IDENTIFIER; }
     Atom *name = nullptr;
+    
+    Ast_Scope *enclosing_scope = nullptr;
     
     Ast_Expression *resolved_declaration = nullptr;
 };
@@ -171,6 +174,7 @@ struct Ast_While : Ast_Expression {
 struct Ast_Return : Ast_Expression {
     Ast_Return() { type = AST_RETURN; }
     
+    Ast_Function *owning_function = nullptr;
     Ast_Expression *expression = nullptr;
 };
 
@@ -204,8 +208,6 @@ struct Ast_Declaration : Ast_Expression {
     bool is_readonly_variable = false;
 };
 
-struct Ast_Function;
-
 struct Ast_Scope : Ast_Expression {
     Ast_Scope() { type = AST_SCOPE; }
     Ast_Scope *parent = nullptr;
@@ -224,6 +226,7 @@ struct Ast_Function : Ast_Expression {
     Array<Ast_Declaration *> arguments;
     Ast_Declaration *return_decl = nullptr;
     
+    Ast_Scope arguments_scope;
     Ast_Scope *scope = nullptr;
     
     bool is_c_function = false;
@@ -250,7 +253,8 @@ struct Ast_For : Ast_Expression {
     Ast_Expression *initial_iterator_expression = nullptr;
     Ast_Expression *upper_range_expression      = nullptr;
     
-    Ast_Expression *statement                   = nullptr;
+    Ast_Scope iterator_declaration_scope;
+    Ast_Scope body;
 };
 
 #define AST_NEW(type) (type *)ast_init(this, new type());

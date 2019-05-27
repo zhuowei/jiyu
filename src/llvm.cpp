@@ -701,10 +701,8 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             if (it_index_decl) {
                 emit_expression(it_decl);
             }
-            if (_for->statement) {
-                emit_expression(_for->statement);
-                // irb->SetInsertPoint(loop_body);
-            }
+            
+            emit_scope(&_for->body);
             
             irb->CreateStore(irb->CreateAdd(it_index, ConstantInt::get(get_type(it_index_type), 1)), it_index_alloca);
             if (!irb->GetInsertBlock()->getTerminator()) irb->CreateBr(loop_header);

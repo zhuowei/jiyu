@@ -302,23 +302,10 @@ void Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast
 void Sema::typecheck_scope(Ast_Scope *scope) {
     assert(scope->substitution == nullptr);
     
-    Ast_Scope *last = get_current_scope();
-    
-    if (last && !scope->owning_function) {
-        assert(last->owning_function);
-        scope->owning_function = last->owning_function;
-    }
-    
-    if (last) assert(scope->owning_function);
-    
-    scope_stack.add(scope);
-    
     for (auto &it : scope->statements) {
         // @TODO should we do replacements at the scope level?
         typecheck_expression(it);
     }
-    
-    scope_stack.pop();
 }
 
 Ast_Expression *Sema::find_declaration_for_atom_in_scope(Ast_Scope *scope, Atom *atom) {
@@ -343,12 +330,13 @@ Ast_Expression *Sema::find_declaration_for_atom_in_scope(Ast_Scope *scope, Atom 
     return nullptr;
 }
 
-Ast_Expression *Sema::find_declaration_for_atom(Atom *atom) {
-    for (auto i = scope_stack.count; i > 0; --i) {
-        auto it = scope_stack[i-1];
-        
-        auto decl = find_declaration_for_atom_in_scope(it, atom);
+Ast_Expression *Sema::find_declaration_for_atom(Atom *atom, Ast_Scope *start) {
+    
+    while (start) {
+        auto decl = find_declaration_for_atom_in_scope(start, atom);
         if (decl) return decl;
+        
+        start = start->parent;
     }
     
     return nullptr;
@@ -364,7 +352,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             auto ident = static_cast<Ast_Identifier *>(expression);
             assert(ident->name);
             
-            auto decl = find_declaration_for_atom(ident->name);
+            auto decl = find_declaration_for_atom(ident->name, ident->enclosing_scope);
             
             if (!decl) {
                 String name = ident->name->name;
@@ -839,11 +827,14 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 typecheck_expression(count_expr);
                 
                 auto zero = make_integer_literal(0, get_type_info(count_expr));
-                
+                auto it_index_ident = make_identifier(compiler->atom_it_index);
+                it_index_ident->text_span = _for->text_span;
+                it_index_ident->enclosing_scope = &_for->body;
                 {
                     Ast_Declaration *decl = new Ast_Declaration();
                     decl->text_span  = _for->text_span;
-                    decl->identifier = make_identifier(compiler->atom_it_index);
+                    decl->identifier = it_index_ident;
+                    decl->identifier->text_span = _for->text_span;
                     decl->initializer_expression = zero;
                     decl->is_let = true;
                     decl->is_readonly_variable = true;
@@ -855,7 +846,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 }
                 
                 {
-                    auto indexed = make_array_index(_for->initial_iterator_expression, make_identifier(compiler->atom_it_index));
+                    auto indexed = make_array_index(_for->initial_iterator_expression, it_index_ident);
                     
                     Ast_Declaration *decl = new Ast_Declaration();
                     decl->text_span  = _for->text_span;
@@ -877,6 +868,8 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 Ast_Declaration *decl = new Ast_Declaration();
                 decl->text_span  = _for->text_span;
                 decl->identifier = make_identifier(compiler->atom_it);
+                decl->identifier->text_span = _for->text_span;
+                decl->identifier->enclosing_scope = &_for->body;
                 decl->initializer_expression = _for->initial_iterator_expression;
                 decl->is_let = true;
                 decl->is_readonly_variable = true;
@@ -885,20 +878,17 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             }
             
             // create a temporary scope for the iterator variable
-            Ast_Scope *scope = new Ast_Scope(); // @Leak
-            scope->owning_function = get_current_scope()->owning_function;
+            Ast_Scope *scope = &_for->iterator_declaration_scope;
+            assert(_for->iterator_decl);
             scope->declarations.add(_for->iterator_decl);
             if (_for->iterator_index_decl) scope->declarations.add(_for->iterator_index_decl);
-            
-            scope_stack.add(scope);
             
             typecheck_expression(_for->iterator_decl);
             if (compiler->errors_reported) return;
             
             assert(get_type_info(_for->iterator_decl));
             
-            typecheck_expression(_for->statement);
-            scope_stack.pop();
+            typecheck_expression(&_for->body);
             
             if (compiler->errors_reported) return;
             
@@ -916,10 +906,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         case AST_RETURN: {
             auto ret = static_cast<Ast_Return *>(expression);
             
-            auto scope = get_current_scope();
-            assert(scope);
-            
-            auto function = scope->owning_function;
+            auto function = ret->owning_function;
             if (function->return_decl) {
                 // since we are currently in the scope of this function, return_decl should be gauranteed to be typechecked already.
                 assert(get_type_info(function->return_decl));
@@ -1133,14 +1120,6 @@ Ast_Type_Info *Sema::resolve_type_inst(Ast_Type_Instantiation *type_inst) {
     return nullptr;
 }
 
-Ast_Scope *Sema::get_current_scope() {
-    if (scope_stack.count) {
-        return scope_stack[scope_stack.count-1];
-    }
-    
-    return nullptr;
-}
-
 void Sema::typecheck_function(Ast_Function *function) {
     // @Incomplete set type info so we don't come through here multiple times
     
@@ -1172,22 +1151,6 @@ void Sema::typecheck_function(Ast_Function *function) {
     }
     
     if (function->scope) {
-        // I dont yet know if this is the best way to handle this, but we create a stand-in scope with
-        // parameter declarations so the typechecker can find semantic relationships for the function
-        // parameters. -josh 28 April 2019
-        
-        Ast_Scope *scope = new Ast_Scope(); // @Leak
-        scope->text_span = function->scope->text_span;
-        
-        // @TODO should we add the parameters as statements too?
-        for (auto a : function->arguments) {
-            scope->declarations.add(a);
-        }
-        
-        scope->statements.add(function->scope);
-        scope->owning_function = function; // Set owning function here because we are the first scope in the stack beginning at this function, child scopes will inherit owning_function from the previous scope in the stack.
-        
-        typecheck_scope(scope);
-        // typecheck_scope(function->scope);
+        typecheck_scope(function->scope);
     }
 }
