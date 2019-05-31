@@ -779,13 +779,13 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
 
 Function *LLVM_Generator::get_or_create_function(Ast_Function *function) {
     assert(function->identifier);
-    String name = function->identifier->name->name;
+    String linkage_name = function->linkage_name;
     
-    auto func = llvm_module->getFunction(string_ref(name));
+    auto func = llvm_module->getFunction(string_ref(linkage_name));
     
     if (!func) {
         FunctionType *function_type = create_function_type(function);
-        func = Function::Create(function_type, GlobalValue::LinkageTypes::ExternalLinkage, string_ref(name), llvm_module);
+        func = Function::Create(function_type, GlobalValue::LinkageTypes::ExternalLinkage, string_ref(linkage_name), llvm_module);
         
         array_count_type i = 0;
         for (auto &a : func->args()) {
@@ -847,6 +847,8 @@ void LLVM_Generator::emit_function(Ast_Function *function) {
             alloca->setName(string_ref(decl->identifier->name->name));
         }
         
+        alloca->dump();
+        a->dump();
         irb->CreateStore(a, alloca);
         
         assert(get_value_for_decl(decl) == nullptr);

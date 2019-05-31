@@ -145,6 +145,7 @@ void Compiler::init() {
     atom_allocated = make_atom(to_string("allocated"));
     atom_it        = make_atom(to_string("it"));
     atom_it_index  = make_atom(to_string("it_index"));
+    atom_main      = make_atom(to_string("main"));
 }
 
 Atom *Compiler::make_atom(String name) {

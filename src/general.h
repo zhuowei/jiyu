@@ -307,6 +307,125 @@ Tuple<A, B> MakeTuple(A a, B b) {
     return t;
 }
 
+#include <cstdio>
+#include <cstdarg>
+
+struct String_Builder {
+    
+    const int BUCKET_ALLOC_SIZE = 4096;
+    
+    struct Bucket {
+        u8 *data = nullptr;
+        array_count_type count     = 0;
+        array_count_type allocated = 0;
+    };
+    
+    Array<Bucket> buckets;
+    
+    String_Builder() {
+        make_bucket(BUCKET_ALLOC_SIZE);
+    }
+    
+    ~String_Builder() {
+        for (auto &bucket : buckets) {
+            if (bucket.data) free(bucket.data);
+            bucket.data = nullptr;
+        }
+        
+        buckets.reset();
+    }
+    
+    void make_bucket(array_count_type amount) {
+        Bucket b;
+        b.data = (u8 *)malloc(amount);
+        b.allocated = amount;
+        b.count = 0;
+        buckets.add(b);
+    }
+    
+    void putchar(char c) {
+        auto bucket = &buckets[buckets.count-1];
+        
+        if (bucket->count < bucket->allocated) {
+            bucket->data[bucket->count] = c;
+            bucket->count++;
+        } else {
+            make_bucket(BUCKET_ALLOC_SIZE);
+            putchar(c);
+        }
+    }
+    
+    void append(String s) {
+        for (string_length_type i = 0; i < s.length; ++i) {
+            putchar(s[i]);
+        }
+    }
+    
+    void append(char *s) {
+        String o;
+        o.data = s;
+        o.length = strlen(s);
+        append(o);
+    }
+    
+    void print_valist(char *c_fmt, va_list vl) {
+        va_list vl_copy;
+        va_copy(vl_copy, vl);
+        
+        auto bucket = &buckets[buckets.count-1];
+        auto remaining = bucket->allocated - bucket->count;
+        auto written = vsnprintf((char *)bucket->data + bucket->count, remaining, c_fmt, vl);
+        
+        if (written < 0) return; // encoding error, @TODO maybe assert here?
+        
+        if (written < remaining) {
+            // success
+            bucket->count += written;
+            assert(bucket->count <= bucket->allocated);
+        } else {
+            u8 *data = (u8 *)malloc(written + 1);
+            auto final = vsnprintf((char *)data, written+1, c_fmt, vl_copy);
+            
+            assert(final >= 0);
+            assert(final < written + 1);
+            
+            Bucket b;
+            b.data = data;
+            b.count = final;
+            b.allocated = written+1;
+            buckets.add(b);
+        }
+    }
+    
+    void print(char *c_fmt, ...) {
+        va_list vl;
+        va_start(vl, c_fmt);
+        print_valist(c_fmt, vl);
+        va_end(vl);
+    }
+    
+    String to_string() {
+        array_count_type total_data = 0;
+        for (Bucket &b : buckets) {
+            total_data += b.count;
+        }
+        
+        char *data = (char *)malloc(total_data);
+        array_count_type cursor = 0;
+        for (Bucket &b : buckets) {
+            memcpy(data+cursor, b.data, b.count);
+            cursor += b.count;
+        }
+        
+        assert(cursor == total_data);
+        
+        String s;
+        s.data = data;
+        s.length = total_data;
+        return s;
+    }
+};
+
 // @Incomplete
 // struct Pool {
 //     struct Chunk {

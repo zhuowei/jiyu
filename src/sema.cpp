@@ -5,6 +5,76 @@
 
 #include <stdio.h>
 
+void add_type(String_Builder *builder, Ast_Type_Info *type) {
+    if (type->type == Ast_Type_Info::INTEGER) {
+        if (type->is_signed) builder->putchar('s');
+        else                 builder->putchar('u');
+        
+        auto size = type->size;
+        assert(size == 1 || size == 2 || size == 4 || size == 8);
+        builder->print("%d", size);
+    } else if (type->type == Ast_Type_Info::FLOAT) {
+        if      (type->size == 4) builder->putchar('f');
+        else if (type->size == 8) builder->putchar('F');
+        else assert(false);
+    } else if (type->type == Ast_Type_Info::VOID) {
+        builder->putchar('v');
+    } else if (type->type == Ast_Type_Info::BOOL) {
+        builder->putchar('b');
+    } else if (type->type == Ast_Type_Info::STRING) {
+        builder->putchar('s');
+    } else if (type->type == Ast_Type_Info::POINTER) {
+        builder->putchar('p');
+        add_type(builder, type->pointer_to);
+    } else if (type->type == Ast_Type_Info::ALIAS) {
+        add_type(builder, type->alias_of);
+    } else if (type->type == Ast_Type_Info::ARRAY) {
+        builder->putchar('A');
+        
+        if (type->array_element_count >= 0) {
+            builder->putchar('k');
+            builder->print("%d", type->array_element_count);
+        } else if (type->is_dynamic) {
+            builder->putchar('d');
+        } else {
+            builder->putchar('s');
+        }
+        
+        
+        builder->putchar('_');
+        add_type(builder, type->array_element);
+        builder->putchar('_');
+    } else if (type->type == Ast_Type_Info::STRUCT) {
+        builder->putchar('S');
+        
+        // @Incomplete structs that are declared with other structs/named-scopes.
+        // @Incomplete anonymous structs?
+        String name = type->struct_decl->identifier->name->name;
+        builder->print("%d%.*s", name.length, name.length, name.data);
+    } else {
+        assert(false && "Internal error: unhandled type when creating function mangled name.");
+    }
+}
+
+String get_mangled_name(Compiler *compiler, Ast_Function *function) {
+    if (function->identifier->name == compiler->atom_main) return function->identifier->name->name;
+    String_Builder builder;
+    
+    builder.append("_H");
+    
+    String name = function->identifier->name->name;
+    builder.print("%d%.*s", name.length, name.length, name.data);
+    
+    builder.putchar('_');
+    
+    for (auto arg: function->arguments) {
+        auto type = get_type_info(arg);
+        add_type(&builder, type);
+    }
+    
+    return builder.to_string();
+}
+
 s32 get_levels_of_indirection(Ast_Type_Info *info) {
     s32 count = 0;
     
@@ -504,13 +574,13 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 // @TODO this isnt exactly correct...
                 /*
                 if (lit) {
-                    if (type->type == Ast_Type_Info::INTEGER) {
-                        lit->integer_value = (-lit->integer_value);
-                    } else if (type->type == Ast_Type_Info::FLOAT) {
-                        lit->float_value = (-lit->float_value);
-                    } else assert(0);
-                    
-                    un->substitution = lit;
+                if (type->type == Ast_Type_Info::INTEGER) {
+                lit->integer_value = (-lit->integer_value);
+                } else if (type->type == Ast_Type_Info::FLOAT) {
+                lit->float_value = (-lit->float_value);
+                } else assert(0);
+                
+                un->substitution = lit;
                 }
                 */
                 
@@ -1168,7 +1238,7 @@ Ast_Type_Info *Sema::resolve_type_inst(Ast_Type_Instantiation *type_inst) {
 }
 
 void Sema::typecheck_function(Ast_Function *function) {
-    // @Incomplete set type info so we don't come through here multiple times
+    if (function->type_info) return;
     
     for (auto &a : function->arguments) {
         a->is_readonly_variable = true;
@@ -1184,6 +1254,14 @@ void Sema::typecheck_function(Ast_Function *function) {
     }
     
     if (function->is_c_function) {
+        function->linkage_name = function->identifier->name->name;
+    } else {
+        function->linkage_name = get_mangled_name(compiler, function);
+        String name = function->linkage_name;
+        printf("Mangled name: '%.*s'\n", name.length, name.data);
+    }
+    
+    if (function->is_c_function) {
         // @TODO error if a C function is declared returning a tuple
         /*
         if (function->returns.count > 1) {
@@ -1196,6 +1274,9 @@ void Sema::typecheck_function(Ast_Function *function) {
         compiler->report_error(function, "Function marked @c_function cannot have a body.\n");
         return;
     }
+    
+    // @Incomplete I'm setting this as void for now just so we dont end up typechecking the same function multiple times, but this should be of 'function' type.
+    function->type_info = compiler->type_void;
     
     if (function->scope) {
         typecheck_scope(function->scope);

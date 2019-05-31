@@ -252,6 +252,8 @@ struct Ast_Function : Ast_Expression {
     
     bool is_c_function = false;
     bool is_c_varargs = false;
+    
+    String linkage_name;
 };
 
 struct Ast_Cast : Ast_Expression {
