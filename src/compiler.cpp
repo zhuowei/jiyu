@@ -80,6 +80,7 @@ Ast_Type_Info *make_struct_type(Ast_Struct *_struct) {
     info->type = Ast_Type_Info::STRUCT;
     
     s64 size_cursor = 0;
+    s64 biggest_alignment = 1;
     
     for (auto expr : _struct->member_scope.declarations) {
         assert(expr->type == AST_DECLARATION);
@@ -97,10 +98,16 @@ Ast_Type_Info *make_struct_type(Ast_Struct *_struct) {
         
         size_cursor = pad_to_alignment(size_cursor, member.type_info->alignment);
         size_cursor += member.type_info->size;
+        
+        if (member.type_info->alignment > biggest_alignment) {
+            biggest_alignment = member.type_info->alignment;
+        }
     }
     
+    info->alignment = biggest_alignment;
     info->struct_decl = _struct;
     info->size = size_cursor;
+    info->stride = pad_to_alignment(info->size, info->alignment);
     return info;
 }
 

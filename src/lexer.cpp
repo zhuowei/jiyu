@@ -128,6 +128,10 @@ Token Lexer::lex_string(char delim) {
         return t;
     } else {
         assert(false);
+        
+        // Dummy token, we should not get here normally.
+        Token t;
+        return t;
     }
 }
 
