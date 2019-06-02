@@ -65,6 +65,72 @@ void Lexer::eat_whitespace() {
     }
 }
 
+Token Lexer::lex_string(char delim) {
+    assert(text[current_char] == delim);
+    
+    char *type = "string";
+    if (delim == '\'') type = "character";
+    
+    auto start = current_char;
+    current_char++;
+    
+    while (current_char < text.length  && text[current_char] != delim) {
+        if (text[current_char] == '\n') {
+            // create a faux token for reporting
+            Token t = make_string_token(Token::STRING, Span(start, current_char - start), text.substring(start, current_char - start));
+            compiler->report_error(&t, "Newline found while lexing %s constant!", type);
+            
+            // return the token so we dont report other errors related to lexing this string
+            return t;
+        } else if (text[current_char] == '\\') {
+            // @Cleanup do we really have to do this??
+            if (current_char + 1 < text.length) {
+                current_char ++; // pass these so that we can translate them later in the final string
+            }
+        }
+        
+        current_char++;
+    }
+    
+    if (current_char < text.length && text[current_char] == delim) {
+        current_char++;
+        
+        auto length = current_char - start;
+        
+        String input = text.substring(start+1, length-2);
+        String output_string = copy_string(input);
+        output_string.length = 0;
+        
+        for (string_length_type i = 0; i < input.length; ++i) {
+            if (input[i] == '\\') {
+                if (i + 1 < input.length) {
+                    if (input[i + 1] == 'n') {
+                        output_string.length++;
+                        output_string.data[output_string.length-1] = '\n';
+                        
+                        ++i;
+                        continue;
+                    }
+                }
+            }
+            
+            output_string.length++;
+            output_string.data[output_string.length-1] = input[i];
+        }
+        
+        return make_string_token(Token::STRING, Span(start, length), output_string);
+    } else if (current_char >= text.length) {
+        // create a faux token for reporting
+        Token t = make_string_token(Token::STRING, Span(start, current_char - start), text.substring(start, current_char - start));
+        compiler->report_error(&t, "End-of-file found while lexing %s constant!", type);
+        
+        // return the token so we dont report other errors related to lexing this string
+        return t;
+    } else {
+        assert(false);
+    }
+}
+
 Token Lexer::lex_token() {
     eat_whitespace();
     
@@ -149,65 +215,27 @@ Token Lexer::lex_token() {
         
         return make_integer_token(value, Span(start, current_char - start));
     } else if (text[current_char] == '\"') {
-        auto start = current_char;
-        current_char++;
+        Token value = lex_string('\"');
+        return value;
+    } else if (text[current_char] == '\'') {
+        Token value = lex_string('\'');
+        if (compiler->errors_reported) return value;
         
-        while (current_char < text.length  && text[current_char] != '\"') {
-            if (text[current_char] == '\n') {
-                // create a faux token for reporting
-                Token t = make_string_token(Token::STRING, Span(start, current_char - start), text.substring(start, current_char - start));
-                compiler->report_error(&t, "Newline found while lexing string constant!");
-                
-                // return the token so we dont report other errors related to lexing this string
-                return t;
-            } else if (text[current_char] == '\\') {
-                // @Cleanup do we really have to do this??
-                if (current_char + 1 < text.length) {
-                    current_char ++; // pass these so that we can translate them later in the final string
-                }
-            }
-            
-            current_char++;
+        String st = value.string;
+        // @Temporary should be 8
+        if (st.length > 4) {
+            compiler->report_error(&value, "Character constant too large to fit in an integer value!\n");
+            return value;
         }
         
-        if (current_char < text.length && text[current_char] == '\"') {
-            current_char++;
-            
-            auto length = current_char - start;
-            
-            String input = text.substring(start+1, length-2);
-            String output_string = copy_string(input);
-            output_string.length = 0;
-            
-            for (string_length_type i = 0; i < input.length; ++i) {
-                if (input[i] == '\\') {
-                    if (i + 1 < input.length) {
-                        if (input[i + 1] == 'n') {
-                            output_string.length++;
-                            output_string.data[output_string.length-1] = '\n';
-                            
-                            ++i;
-                            continue;
-                        }
-                    }
-                }
-                
-                output_string.length++;
-                output_string.data[output_string.length-1] = input[i];
-            }
-            
-            return make_string_token(Token::STRING, Span(start, length), output_string);
-        } else if (current_char >= text.length) {
-            // create a faux token for reporting
-            Token t = make_string_token(Token::STRING, Span(start, current_char - start), text.substring(start, current_char - start));
-            compiler->report_error(&t, "End-of-file found while lexing string constant!");
-            
-            // return the token so we dont report other errors related to lexing this string
-            return t;
-        } else {
-            assert(false);
-        }
+        Token out;
+        out.type = Token::INTEGER;
+        out.text_span = value.text_span;
         
+        for (string_length_type i = 0; i < st.length; ++i) {
+            out.integer = out.integer | (((u64)st[i] & 0xFF) << i*8);
+        }
+        return out;
     } else if (text[current_char] == '-') {
         if (current_char+1 < text.length && text[current_char+1] == '>') {
             string_length_type start = current_char;

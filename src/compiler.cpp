@@ -42,12 +42,15 @@ Ast_Type_Info *make_array_type(Ast_Type_Info *element, array_count_type count, b
     if (count >= 0) {
         assert(is_dynamic == false);
         info->size = element->size * count;
+        info->alignment = element->alignment;
     } else {
         if (!is_dynamic) {
             info->size = 16; // @Cleanup hardcoded value
         } else {
             info->size = 24; // @Cleanup hardcoded value
         }
+        
+        info->alignment = 8; // @TargetInfo @PointerSize @Cleanup hardcoded value
     }
     return info;
 }
@@ -57,28 +60,47 @@ Ast_Type_Info *make_pointer_type(Ast_Type_Info *pointee) {
     info->type = Ast_Type_Info::POINTER;
     info->pointer_to = pointee;
     info->size = 8; // @TargetInfo
+    info->alignment = info->size;
     return info;
+}
+
+s64 pad_to_alignment(s64 current, s64 align) {
+    assert(align >= 1);
+    
+    s64 minum = current & (align-1);
+    if (minum) {
+        current += align - minum;
+    }
+    
+    return current;
 }
 
 Ast_Type_Info *make_struct_type(Ast_Struct *_struct) {
     Ast_Type_Info *info = new Ast_Type_Info();
     info->type = Ast_Type_Info::STRUCT;
     
+    s64 size_cursor = 0;
+    
     for (auto expr : _struct->member_scope.declarations) {
         assert(expr->type == AST_DECLARATION);
         
         // @Cleanup @Hack we need to be able to handle other structs, functions, typealiases or at least punt on them.
         auto decl = static_cast<Ast_Declaration *>(expr);
+        assert(decl && decl->type_info);
+        
         Ast_Type_Info::Struct_Member member;
         member.name = decl->identifier->name;
         member.type_info = decl->type_info;
         member.is_let = decl->is_let;
         
         info->struct_members.add(member);
+        
+        size_cursor = pad_to_alignment(size_cursor, member.type_info->alignment);
+        size_cursor += member.type_info->size;
     }
     
     info->struct_decl = _struct;
-    
+    info->size = size_cursor;
     return info;
 }
 
@@ -87,6 +109,7 @@ static Ast_Type_Info *make_int_type(bool is_signed, s64 size) {
     info->type = Ast_Type_Info::INTEGER;
     info->is_signed = is_signed;
     info->size = size;
+    info->alignment = info->size;
     return info;
 }
 
@@ -94,6 +117,7 @@ static Ast_Type_Info *make_float_type(s64 size) {
     Ast_Type_Info *info = new Ast_Type_Info();
     info->type = Ast_Type_Info::FLOAT;
     info->size = size;
+    info->alignment = info->size;
     return info;
 }
 

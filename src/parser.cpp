@@ -630,6 +630,7 @@ Ast_Expression *Parser::parse_statement() {
         Ast_Struct *_struct = AST_NEW(Ast_Struct);
         next_token();
         _struct->identifier = parse_identifier();
+        _struct->member_scope.parent = get_current_scope();
         parse_scope(&_struct->member_scope, true);
         return _struct;
     }

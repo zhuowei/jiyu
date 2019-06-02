@@ -755,6 +755,18 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             
             auto type = get_type_info(deref->array_or_pointer_expression);
             if (type->type == Ast_Type_Info::ARRAY && type->array_element_count == -1) {
+                // @Cleanup hardcoded indices
+                array = irb->CreateGEP(array, {ConstantInt::get(type_i32, 0), ConstantInt::get(type_i32, 0)});
+                array = irb->CreateLoad(array);
+                auto element = irb->CreateGEP(array, index);
+                
+                if (!is_lvalue) return irb->CreateLoad(element);
+                return element;
+            } else if (type->type == Ast_Type_Info::STRING) {
+                // @Note although this is identical to the dynamic/static array case,
+                // I've chosen to duplicate the code in case we chnage the order of
+                // any of these implicit struct fields.
+                // @Cleanup hardcoded indices.
                 array = irb->CreateGEP(array, {ConstantInt::get(type_i32, 0), ConstantInt::get(type_i32, 0)});
                 array = irb->CreateLoad(array);
                 auto element = irb->CreateGEP(array, index);

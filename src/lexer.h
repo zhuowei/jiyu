@@ -125,6 +125,8 @@ struct Lexer {
     Token make_string_token(Token::Type type, Span span, String string);
     Token make_integer_token(s64 value, Span span);
     
+    Token lex_string(char delim);
+    
     void eat_whitespace();
     Token lex_token();
     void tokenize_text();

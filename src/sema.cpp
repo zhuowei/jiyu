@@ -1095,8 +1095,9 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             if (compiler->errors_reported) return;
             
             auto array_type = get_type_info(deref->array_or_pointer_expression);
-            if (array_type->type != Ast_Type_Info::ARRAY && array_type->type != Ast_Type_Info::POINTER) {
-                compiler->report_error(deref->array_or_pointer_expression, "Expected array or pointer for index expression, but got something else.\n");
+            if (array_type->type != Ast_Type_Info::ARRAY   && array_type->type != Ast_Type_Info::POINTER &&
+                array_type->type != Ast_Type_Info::STRING) {
+                compiler->report_error(deref->array_or_pointer_expression, "Expected array, string, or pointer for index expression, but got something else.\n");
                 return;
             }
             
@@ -1128,6 +1129,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             
             if (array_type->type == Ast_Type_Info::ARRAY) deref->type_info = array_type->array_element;
             else if (array_type->type == Ast_Type_Info::POINTER) deref->type_info = array_type->pointer_to;
+            else if (array_type->type == Ast_Type_Info::STRING) deref->type_info = compiler->type_uint8;
             else assert(false);
             
             return;
@@ -1142,10 +1144,13 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             }
             
             auto type = resolve_type_inst(size->target_type_inst);
-            size->type_info = type;
+            // size->type_info = type;
+            assert(type->size >= 0);
             
             auto lit = make_integer_literal(type->size, compiler->type_int32);
             lit->text_span = size->text_span;
+            
+            size->type_info = lit->type_info;
             size->substitution = lit;
             return;
         }
@@ -1200,6 +1205,8 @@ Ast_Type_Info *Sema::resolve_type_inst(Ast_Type_Instantiation *type_inst) {
     
     if (type_inst->array_element_type) {
         auto element = resolve_type_inst(type_inst->array_element_type);
+        if (compiler->errors_reported) return nullptr;
+        
         if (!element) {
             compiler->report_error(type_inst, "Internal error: Array-type must specify an element type.\n");
             return nullptr;

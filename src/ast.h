@@ -87,6 +87,7 @@ struct Ast_Type_Info {
     Array<Struct_Member> struct_members; // for STRUCT
     // Ast_Function *function;
     
+    s64 alignment = -1;
     s64 size = -1;
 };
 
