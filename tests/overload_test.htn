@@ -1,17 +1,18 @@
 
 
-func abs(x: float) -> float {
+func test(x: float) -> float {
 	return x;
 }
 
-func abs(x: int64) -> int64 {
+func test(x: int64) -> int64 {
 	return x;
 }
 
 func @c_function printf(fmt: *uint8, temporary_c_vararg);
 
 func main() {
-// this should select abs(int64) and not abs(float)
-	var value = abs(-1);
-	printf("%f\n".data, value);
+	// this should select test(int64) and not test(float)
+	var value1 = test(-1);
+    var value2 = test(cast(float) -1);
+	printf("%d, %f\n".data, value1, value2);
 }

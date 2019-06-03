@@ -310,8 +310,6 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 Value *left  = emit_expression(bin->left,  true);
                 Value *right = emit_expression(bin->right, false);
                 
-                left->dump();
-                right->dump();
                 irb->CreateStore(right, left);
                 return nullptr;
             } else {
@@ -859,8 +857,6 @@ void LLVM_Generator::emit_function(Ast_Function *function) {
             alloca->setName(string_ref(decl->identifier->name->name));
         }
         
-        alloca->dump();
-        a->dump();
         irb->CreateStore(a, alloca);
         
         assert(get_value_for_decl(decl) == nullptr);
