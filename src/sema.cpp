@@ -315,7 +315,7 @@ bool expression_is_lvalue(Ast_Expression *expression, bool parent_wants_lvalue) 
 
 // @Cleanup if we introduce expression substitution, then we can remove the resut parameters and just set (left/right)->substitution
 // actually, if we do that, then we can't really use this for checking function calls.
-void Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast_Expression *right, Ast_Expression **result_left, Ast_Expression **result_right, bool allow_coerce_to_ptr_void) {
+Tuple<u64, u64> Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast_Expression *right, Ast_Expression **result_left, Ast_Expression **result_right, bool allow_coerce_to_ptr_void) {
     if (left->type == AST_LITERAL) {
         typecheck_expression(right);
         typecheck_expression(left, get_type_info(right));
@@ -324,7 +324,7 @@ void Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast
         typecheck_expression(right, get_type_info(left));
     }
     
-    if (compiler->errors_reported) return;
+    if (compiler->errors_reported) return MakeTuple<u64, u64>(0, 0);
     
     while (left->substitution)  left  = left->substitution;
     while (right->substitution) right = right->substitution;
@@ -334,23 +334,32 @@ void Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast
     
     auto ltype = left->type_info;
     auto rtype = right->type_info;
+    u64  left_viability_score  = 0;
+    u64  right_viability_score = 0;
+    
     if (!types_match(ltype, rtype)) {
         if (is_int_type(ltype) && is_int_type(rtype) && (ltype->is_signed == rtype->is_signed)) {
             if (ltype->size < rtype->size) {
                 left = cast_int_to_int(left, rtype);
+                left_viability_score += 1;
             } else if (ltype->size > rtype->size) {
                 right = cast_int_to_int(right, ltype);
+                right_viability_score += 1;
             }
         } else if (is_float_type(ltype) && is_float_type(rtype)) {
             if (ltype->size < rtype->size) {
                 left = cast_float_to_float(left, rtype);
+                left_viability_score += 1;
             } else if (ltype->size > rtype->size) {
                 right = cast_float_to_float(right, ltype);
+                right_viability_score += 1;
             }
         } else if (is_float_type(ltype) && is_int_type(rtype)) {
             right = cast_int_to_float(right, ltype);
+            right_viability_score += 10;
         } else if (is_int_type(ltype) && is_float_type(rtype)) {
             left = cast_int_to_float(left, rtype);
+            left_viability_score += 10;
         }else if (allow_coerce_to_ptr_void && is_pointer_type(ltype) && is_pointer_type(rtype)) {
             
             // @Note you're only allowed to coerce right-to-left here, meaning if the right-expression is *void, the left-expression cannot coerce away from whatever ptr type it is.
@@ -362,11 +371,15 @@ void Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast
                     right = cast_ptr_to_ptr(right, ltype);
                 }
             }
+            
+            right_viability_score += 1;
         }
     }
     
     if (result_left)  *result_left  = left;
     if (result_right) *result_right = right;
+    
+    return MakeTuple(left_viability_score, right_viability_score);
 }
 
 void Sema::typecheck_scope(Ast_Scope *scope) {
@@ -375,6 +388,71 @@ void Sema::typecheck_scope(Ast_Scope *scope) {
     for (auto &it : scope->statements) {
         // @TODO should we do replacements at the scope level?
         typecheck_expression(it);
+    }
+}
+
+Tuple<bool, u64> Sema::function_call_is_viable(Ast_Function_Call *call, Ast_Function *function, bool perform_full_check) {
+    bool pass_c_varags = (function->is_c_varargs && call->argument_list.count >= function->arguments.count);
+    if (!pass_c_varags && call->argument_list.count != function->arguments.count) {
+        // @TODO print function declaration as well as call site
+        if (perform_full_check) {
+            compiler->report_error(call, "Mismatch in function call arguments. Wanted %lld, got %lld.\n", function->arguments.count, call->argument_list.count);
+        }
+        return MakeTuple<bool, u64>(false, 0);
+    }
+    
+    typecheck_function(function);
+    if (compiler->errors_reported) return MakeTuple<bool, u64>(false, 0);
+    
+    u64 viability_score = 0;
+    // @Incomplete check that types match between arguments
+    for (array_count_type i = 0; i < call->argument_list.count; ++i) {
+        auto value = call->argument_list[i];
+        
+        if (i < function->arguments.count) {
+            // use null for morphed param because we don't care about the modified value because function parameter declarations can't be mutated here
+            auto param = function->arguments[i];
+            bool allow_coerce_to_ptr_void = true;
+            auto tuple = typecheck_and_implicit_cast_expression_pair(param, value, nullptr, &value, allow_coerce_to_ptr_void);
+            u64 right_viability_score = tuple.item2;
+            
+            if (compiler->errors_reported) return MakeTuple<bool, u64>(false, 0);
+            
+            if (!types_match(value->type_info, param->type_info)) {
+                if (perform_full_check) {
+                    compiler->report_error(value, "Mismatch in function call argument types.\n");
+                }
+                return MakeTuple<bool, u64>(false, 0);
+            }
+            
+            // if value was mutated away from argument_list then add to the score
+            viability_score += right_viability_score;
+        } else if (function->is_c_varargs) {
+            // just do a normal typecheck on the call argument since this is for varargs
+            typecheck_expression(value);
+            viability_score += 1;
+        } else {
+            assert(false);
+        }
+        
+        // set value into the list in case it got implicitly cast
+        if (perform_full_check) call->argument_list[i] = value;
+    }
+    
+    return MakeTuple<bool, u64>(true, viability_score);
+}
+
+void Sema::collect_function_overloads_for_atom(Atom *atom, Ast_Scope *start, Array<Ast_Function *> *overload_set) {
+    while (start) {
+        
+        for (auto it : start->declarations) {
+            if (it->type == AST_FUNCTION) {
+                auto function = static_cast<Ast_Function *>(it);
+                if (function->identifier->name == atom) overload_set->add(function);
+            }
+        }
+        
+        start = start->parent;
     }
 }
 
@@ -641,6 +719,8 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         
         case AST_FUNCTION_CALL: {
             auto call = static_cast<Ast_Function_Call *>(expression);
+            
+            /*
             typecheck_expression(call->identifier);
             
             if (compiler->errors_reported) return;
@@ -653,48 +733,54 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 compiler->report_error(call, "Declaration '%.*s' is not a function.\n", name.length, name.data);
                 return;
             }
+*/
+            // @Incomplete function pointers
+            Array<Ast_Function *> overload_set;
+            collect_function_overloads_for_atom(call->identifier->name, call->identifier->enclosing_scope, &overload_set);
             
-            bool pass_c_varags = (function->is_c_varargs && call->argument_list.count >= function->arguments.count);
-            if (!pass_c_varags &&  call->argument_list.count != function->arguments.count) {
-                // @TODO print function declaration as well as call site
-                compiler->report_error(call, "Mismatch in function call arguments. Wanted %lld, got %lld.\n", function->arguments.count, call->argument_list.count);
+            if (overload_set.count == 0) {
+                compiler->report_error(call, "Function call identifier does not name a function.");
+            }
+            
+            Ast_Function *function = nullptr;
+            if (overload_set.count == 1) {
+                function = overload_set[0];
+            } else {
+                
+                const u64 U64_MAX = 0xFFFFFFFFFFFFFFFF;
+                u64 lowest_score = U64_MAX;
+                for (auto overload : overload_set) {
+                    auto tuple = function_call_is_viable(call, overload, false);
+                    if (compiler->errors_reported) return;
+                    
+                    bool viable = tuple.item1;
+                    u64  score  = tuple.item2;
+                    
+                    if (viable) {
+                        if (score < lowest_score) {
+                            lowest_score = score;
+                            function = overload;
+                        }
+                    }
+                }
+            }
+            
+            if (!function) {
+                // @Incomplete print visible overload candidates
+                compiler->report_error(call, "No viable overload for function call.\n");
                 return;
             }
             
-            typecheck_function(function);
-            
-            // @Incomplete check that types match between arguments
-            for (array_count_type i = 0; i < call->argument_list.count; ++i) {
-                auto value = call->argument_list[i];
-                
-                if (i < function->arguments.count) {
-                    // use null for morphed param because we don't care about the modified value because function parameter declarations can't be mutated here
-                    auto param = function->arguments[i];
-                    bool allow_coerce_to_ptr_void = true;
-                    typecheck_and_implicit_cast_expression_pair(param, value, nullptr, &value, allow_coerce_to_ptr_void);
-                    
-                    if (compiler->errors_reported) return;
-                    
-                    if (!types_match(value->type_info, param->type_info)) {
-                        compiler->report_error(value, "Mismatch in function call argument types.\n");
-                        return;
-                    }
-                } else if (function->is_c_varargs) {
-                    // just do a normal typecheck on the call argument since this is for varargs
-                    typecheck_expression(value);
-                } else {
-                    assert(false);
-                }
-                
-                // set value into the list in case it got implicitly cast
-                call->argument_list[i] = value;
-            }
+            function_call_is_viable(call, function, true);
+            if (compiler->errors_reported) return;
             
             if (function->return_decl) {
                 call->type_info = function->return_decl->type_info;
             } else {
                 call->type_info = compiler->type_void;
             }
+            
+            call->identifier->resolved_declaration = function;
             
             return;
         }

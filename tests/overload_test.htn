@@ -1,0 +1,17 @@
+
+
+func abs(x: float) -> float {
+	return x;
+}
+
+func abs(x: int64) -> int64 {
+	return x;
+}
+
+func @c_function printf(fmt: *uint8, temporary_c_vararg);
+
+func main() {
+// this should select abs(int64) and not abs(float)
+	var value = abs(-1);
+	printf("%f\n".data, value);
+}
