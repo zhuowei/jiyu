@@ -94,6 +94,8 @@ struct Compiler {
     Atom *atom_it_index;
     Atom *atom_main;
     
+    Array<Ast_Function *> function_emission_queue;
+    
     Compiler() {
         atom_table = new Atom_Table();
         global_scope = new Ast_Scope();

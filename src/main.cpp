@@ -121,11 +121,10 @@ int main(int argc, char **argv) {
     compiler.llvm_gen = new LLVM_Generator(&compiler);
     compiler.llvm_gen->init();
     
-    for (auto &stmt : compiler.global_scope->statements) {
-        if (stmt->type == AST_FUNCTION) {
-            auto function = reinterpret_cast<Ast_Function *>(stmt);
-            compiler.llvm_gen->emit_function(function);
-        }
+    // @Incomplete globa variables
+    
+    for (auto &function : compiler.function_emission_queue) {
+        compiler.llvm_gen->emit_function(function);
     }
     
     if (compiler.errors_reported) return -1;

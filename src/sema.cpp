@@ -1374,4 +1374,6 @@ void Sema::typecheck_function(Ast_Function *function) {
     if (function->scope) {
         typecheck_scope(function->scope);
     }
+    
+    compiler->function_emission_queue.add(function);
 }
