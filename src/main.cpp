@@ -7,7 +7,9 @@
 #include "llvm.h"
 #include "sema.h"
 
+#ifdef WIN32
 #include "microsoft_craziness.h"
+#endif
 
 #include <stdio.h>
 
@@ -189,6 +191,24 @@ int main(int argc, char **argv) {
         CreateProcessA(nullptr, (char *) cmd_line, nullptr, nullptr, TRUE, 0, nullptr, nullptr, &startup, &process_info);
         WaitForSingleObject(process_info.hProcess, INFINITE);
     }
+#else
+    // @Incomplete should use the execpve family
+    Array<String> args;
+    args.add(to_string("ld"));
+    args.add(to_string("output.o"));
+
+    args.add(to_string("-o"));
+    args.add(to_string("output"));
+
+    args.add(to_string("-framework"));
+    args.add(to_string("OpenGL"));
+
+    args.add(to_string("-lglfw"));
+    args.add(to_string("-lc"));
+    
+    auto cmd_line = get_command_line(&args);
+    printf("Linker line: %s\n", cmd_line);
+    system((char *)cmd_line);
 #endif
     return 0;
 }
