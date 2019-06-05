@@ -951,6 +951,47 @@ Ast_Function *Parser::parse_function() {
     Ast_Identifier *ident = parse_identifier();
     if (!ident) return nullptr;
     
+    token = peek_token();
+    if (token->type == Token::LEFT_ANGLE) {
+        Ast_Scope *polymorphic_scope = AST_NEW(Ast_Scope);
+        polymorphic_scope->is_template_argument_block = true;
+        function->polymorphic_type_alias_scope = polymorphic_scope;
+        next_token();
+        
+        scope_stack.add(polymorphic_scope);
+        
+        token = peek_token();
+        while (token->type != Token::END) {
+            Ast_Type_Alias *alias = AST_NEW(Ast_Type_Alias);
+            alias->identifier = parse_identifier();
+            
+            if (!alias->identifier) {
+                compiler->report_error(alias, "Expected identifier in template argument list but got something else.\n");
+                return nullptr;
+            }
+            
+            polymorphic_scope->declarations.add(alias);
+            
+            token = peek_token();
+            if (token->type == Token::COMMA) {
+                next_token();
+                
+                token = peek_token();
+                continue;
+            }
+            
+            if (!expect_and_eat(Token::RIGHT_ANGLE)) return nullptr;
+            
+            break;
+        }
+        
+        scope_stack.pop();
+        
+        function->arguments_scope.parent = polymorphic_scope;
+        
+        function->is_template_function = true;
+    }
+    
     if (!expect_and_eat((Token::Type) '(')) return nullptr;
     
     token = peek_token();
@@ -1014,7 +1055,7 @@ Ast_Function *Parser::parse_function() {
     if (peek_token()->type == '{') {
         auto parent = get_current_scope();
         Ast_Scope *scope = AST_NEW(Ast_Scope);
-        scope->parent = &function->arguments_scope;;
+        scope->parent = &function->arguments_scope;
         parse_scope(scope, true);
         function->scope = scope;
     } else {

@@ -20,6 +20,8 @@ struct Sema {
         this->compiler = compiler;
     }
     
+    Ast_Function *get_polymorph_for_function_call(Ast_Function *template_function, Ast_Function_Call *call);
+    
     Tuple<bool, u64> function_call_is_viable(Ast_Function_Call *call, Ast_Function *function, bool do_errors);
     void collect_function_overloads_for_atom(Atom *atom, Ast_Scope *start, Array<Ast_Function *> *overload_set);
     Ast_Expression *find_declaration_for_atom(Atom *atom, Ast_Scope *start);

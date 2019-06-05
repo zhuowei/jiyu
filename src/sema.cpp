@@ -391,7 +391,53 @@ void Sema::typecheck_scope(Ast_Scope *scope) {
     }
 }
 
+Ast_Function *Sema::get_polymorph_for_function_call(Ast_Function *template_function, Ast_Function_Call *call) {
+    assert(template_function->is_template_function);
+    
+    // @Incomplete if we end up supporting varargs for native functions, then this needs to change
+    if (call->argument_list.count != template_function->arguments.count) {
+        return nullptr;
+    }
+    
+    for (auto expr: call->argument_list) {
+        typecheck_expression(expr);
+        
+        if (compiler->errors_reported) return nullptr;
+    }
+    
+    for (auto overload: template_function->polymorphed_overloads) {
+        assert(overload->arguments.count == call->argument_list.count);
+        
+        bool does_match = true;
+        for (array_count_type i = 0; i < overload->arguments.count; ++i) {
+            auto arg_type = get_type_info(overload->arguments[i]);
+            auto call_type = get_type_info(call->argument_list[i]);
+            
+            assert(arg_type);
+            assert(call_type);
+            
+            if (!types_match(arg_type, call_type)) {
+                does_match = false;
+                break;
+            }
+        }
+        
+        if (does_match) return overload;
+    }
+    
+    // @Incomplete
+    // from here we need to make a copy of the template
+    // and then attempt to resolve the types of the function arguments
+    // and resolve the targets of the template type aliases
+    return nullptr;
+}
+
 Tuple<bool, u64> Sema::function_call_is_viable(Ast_Function_Call *call, Ast_Function *function, bool perform_full_check) {
+    if (function->is_template_function) {
+        compiler->report_error(call, "Internal error: function_call_is_viable is invalid for template functions. Only polymorphed functions should get here!\n");
+        MakeTuple<bool, u64>(false, 0);
+    }
+    
     bool pass_c_varags = (function->is_c_varargs && call->argument_list.count >= function->arguments.count);
     if (!pass_c_varags && call->argument_list.count != function->arguments.count) {
         // @TODO print function declaration as well as call site
@@ -729,11 +775,11 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             auto function = static_cast<Ast_Function *>(call->identifier->resolved_declaration);
             
             if (function->type != AST_FUNCTION) {
-                String name = call->identifier->name->name;
-                compiler->report_error(call, "Declaration '%.*s' is not a function.\n", name.length, name.data);
-                return;
+            String name = call->identifier->name->name;
+            compiler->report_error(call, "Declaration '%.*s' is not a function.\n", name.length, name.data);
+            return;
             }
-*/
+            */
             // @Incomplete function pointers
             Array<Ast_Function *> overload_set;
             collect_function_overloads_for_atom(call->identifier->name, call->identifier->enclosing_scope, &overload_set);
@@ -750,6 +796,13 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 const u64 U64_MAX = 0xFFFFFFFFFFFFFFFF;
                 u64 lowest_score = U64_MAX;
                 for (auto overload : overload_set) {
+                    if (overload->is_template_function) {
+                        overload = get_polymorph_for_function_call(overload, call);
+                        if (compiler->errors_reported) return;
+                        
+                        if (!overload) continue; // no polymorphs that match this call, so skip it
+                    }
+                    
                     auto tuple = function_call_is_viable(call, overload, false);
                     if (compiler->errors_reported) return;
                     
@@ -1151,7 +1204,15 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         
         case AST_TYPE_ALIAS: {
             auto alias = static_cast<Ast_Type_Alias *>(expression);
-            resolve_type_inst(alias->internal_type_inst);
+            if (alias->internal_type_inst) {
+                resolve_type_inst(alias->internal_type_inst);
+                if (compiler->errors_reported) return;
+                
+                assert(alias->internal_type_inst->type_value);
+                alias->type_value = alias->internal_type_inst->type_value;
+            } else {
+                assert(alias->type_value);
+            }
             alias->type_info = compiler->type_info_type;
             return;
         }
@@ -1257,7 +1318,7 @@ Ast_Type_Info *Sema::resolve_type_inst(Ast_Type_Instantiation *type_inst) {
     
     if (type_inst->builtin_primitive) {
         type_inst->type_value = type_inst->builtin_primitive;
-        return type_inst->builtin_primitive;
+        return type_inst->type_value;
     }
     
     if (type_inst->typename_identifier) {
@@ -1278,12 +1339,16 @@ Ast_Type_Info *Sema::resolve_type_inst(Ast_Type_Instantiation *type_inst) {
         if (decl->type == AST_TYPE_ALIAS) {
             auto alias = static_cast<Ast_Type_Alias *>(decl);
             typecheck_expression(alias);
-            type_inst->type_value = resolve_type_inst(alias->internal_type_inst);
+            if (compiler->errors_reported) return nullptr;
+            
+            assert(alias->type_value);
+            type_inst->type_value = alias->type_value;
             return type_inst->type_value;
         } else if (decl->type == AST_STRUCT) {
             auto _struct = static_cast<Ast_Struct *>(decl);
             typecheck_expression(_struct);
-            return _struct->type_value;
+            type_inst->type_value = _struct->type_value;
+            return type_inst->type_value;
         } else {
             assert(false);
         }
@@ -1332,6 +1397,16 @@ Ast_Type_Info *Sema::resolve_type_inst(Ast_Type_Instantiation *type_inst) {
 
 void Sema::typecheck_function(Ast_Function *function) {
     if (function->type_info) return;
+    
+    if (function->is_c_function && function->is_template_function) {
+        compiler->report_error(function, "Function declared @c_function cannot have template arguments.\n");
+    }
+    
+    if (function->is_template_function) {
+        // we dont typecheck template functions, we only typecheck polymorphs, which will make it here on their own.
+        function->type_info = compiler->type_void;
+        return;
+    }
     
     for (auto &a : function->arguments) {
         a->is_readonly_variable = true;

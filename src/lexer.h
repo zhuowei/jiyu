@@ -7,6 +7,7 @@
 struct Token {
     enum Type {
         DOT          = '.',
+        COMMA        = ',',
         EQUALS       = '=',
         SEMICOLON    = ';',
         COLON        = ':',
