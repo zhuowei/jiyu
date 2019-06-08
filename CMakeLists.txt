@@ -31,6 +31,6 @@ endif()
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
-llvm_map_components_to_libnames(LLVM_LIBS X86 asmparser asmprinter passes)
+llvm_map_components_to_libnames(LLVM_LIBS X86 asmparser asmprinter passes orcjit)
 add_executable(htn ${HTN_SRCS})
 target_link_libraries(htn ${CMAKE_THREAD_LIBS_INIT} ${LLVM_LIBS})
