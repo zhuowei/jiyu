@@ -28,7 +28,19 @@
 
 #include "llvm/IR/IRBuilder.h"
 
+#include "llvm/ExecutionEngine/Orc/CompileUtils.h"
+#include "llvm/ExecutionEngine/Orc/Core.h"
+#include "llvm/ExecutionEngine/Orc/ExecutionUtils.h"
+#include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
+#include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
+#include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
+#include "llvm/ExecutionEngine/SectionMemoryManager.h"
+#include "llvm/ExecutionEngine/JITSymbol.h"
+
+#include "llvm/Transforms/Utils/Cloning.h"
+
 using namespace llvm;
+using namespace llvm::orc;
 
 void LLVM_Generator::init() {
     InitializeAllTargetInfos();
@@ -58,7 +70,10 @@ void LLVM_Generator::init() {
     
     
     
-    llvm_context = new LLVMContext();
+    auto ctx = llvm::make_unique<LLVMContext>();
+    thread_safe_context = new ThreadSafeContext(std::move(ctx));
+    llvm_context = thread_safe_context->getContext();
+    
     llvm_module = new Module("Htn Module", *llvm_context);
     irb = new IRBuilder<>(*llvm_context);
     
@@ -107,7 +122,7 @@ void LLVM_Generator::finalize() {
     legacy::PassManager pass;
     auto FileType = TargetMachine::CGFT_ObjectFile;
     
-    llvm_module->dump();
+    // llvm_module->dump();
     
     pass.add(createVerifierPass(false));
     if (TargetMachine->addPassesToEmitFile(pass, dest, nullptr, FileType)) {
@@ -884,3 +899,46 @@ void LLVM_Generator::emit_function(Ast_Function *function) {
     decl_value_map.clear();
 }
 
+#include <stdio.h>
+
+void LLVM_Jitter::init() {
+    auto JTMB = JITTargetMachineBuilder::detectHost();
+    
+    if (!JTMB) {
+        JTMB.takeError();
+        return;
+    }
+    
+    auto DL = JTMB->getDefaultDataLayoutForTarget();
+    if (!DL) {
+        DL.takeError();
+        return;
+    }
+
+    ExecutionSession ES;
+    RTDyldObjectLinkingLayer ObjectLayer(ES, []() { return llvm::make_unique<SectionMemoryManager>(); });
+    IRCompileLayer CompileLayer(ES, ObjectLayer, ConcurrentIRCompiler(*JTMB));
+    
+    MangleAndInterner Mangle(ES, *DL);
+    
+    ES.getMainJITDylib().setGenerator(cantFail(DynamicLibrarySearchGenerator::GetForCurrentProcess(*DL)));
+
+    llvm->llvm_module->setDataLayout(*DL);
+    // llvm->llvm_module->dump();
+    
+    cantFail(CompileLayer.add(ES.getMainJITDylib(),
+                              ThreadSafeModule(std::unique_ptr<Module>(llvm->llvm_module), *llvm->thread_safe_context)));
+    
+    auto sym = ES.lookup({&ES.getMainJITDylib()}, Mangle("_H8asdfmain_"));
+    if (!sym) {
+        sym.takeError();
+        return;
+    }
+    
+    auto *Main = (void (*)()) sym->getAddress();
+    Main();
+}
+
+void *LLVM_Jitter::lookup_symbol(String name) {
+    return nullptr;
+}

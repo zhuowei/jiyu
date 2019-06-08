@@ -81,7 +81,25 @@ int main(int argc, char **argv) {
         return -1;
     }
     
-    String filename = to_string(argv[1]);
+    String filename;
+    bool is_metaprogram = false;
+    
+    for (int i = 1; i < argc; ++i) {
+        if (to_string("-meta") == to_string(argv[i])) {
+            is_metaprogram = true;
+        } else {
+            filename = to_string(argv[i]);
+        }
+    }
+    
+    Compiler compiler;
+    compiler.init();
+    
+    if (filename == to_string("")) {
+        compiler.report_error((Token *)nullptr, "No input files specified.\n");
+        return -1;
+    }
+    
     String source;
     bool success = read_entire_file(filename, &source);
     if (!success) {
@@ -89,8 +107,6 @@ int main(int argc, char **argv) {
         return -1;
     }
     
-    Compiler compiler;
-    compiler.init();
     Lexer *lexer = new Lexer(&compiler, source, filename);
     lexer->tokenize_text();
     
@@ -106,8 +122,8 @@ int main(int argc, char **argv) {
     
     printf("TOKEN COUNT: %d\n", lexer->tokens.count);
     for (auto &t : lexer->tokens) {
-        String text = t.text_span.get_text();
-        printf("'%.*s'\n", text.length, text.data);
+    String text = t.text_span.get_text();
+    printf("'%.*s'\n", text.length, text.data);
     }
     */
     
@@ -130,6 +146,14 @@ int main(int argc, char **argv) {
     }
     
     if (compiler.errors_reported) return -1;
+    
+    if (is_metaprogram) {
+        LLVM_Jitter *jitter = new LLVM_Jitter(compiler.llvm_gen);
+        jitter->init();
+        // auto *Main = (void (*)()) jitter->lookup_symbol(to_string("_H8asdfmain_"));
+        // Main();
+        return 0;
+    }
     
     compiler.llvm_gen->finalize();
     
@@ -196,13 +220,13 @@ int main(int argc, char **argv) {
     Array<String> args;
     args.add(to_string("ld"));
     args.add(to_string("output.o"));
-
+    
     args.add(to_string("-o"));
     args.add(to_string("output"));
-
+    
     args.add(to_string("-framework"));
     args.add(to_string("OpenGL"));
-
+    
     args.add(to_string("-lglfw"));
     args.add(to_string("-lc"));
     

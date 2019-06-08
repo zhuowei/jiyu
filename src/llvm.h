@@ -20,6 +20,14 @@ namespace llvm {
     class IRBuilderDefaultInserter;
     
     template<typename T, typename Inserter> class IRBuilder;
+    
+    namespace orc {
+        class ExecutionSession;
+        class RTDyldObjectLinkingLayer;
+        class IRCompileLayer;
+        class ThreadSafeContext;
+        class MangleAndInterner;
+    };
 };
 
 struct Compiler;
@@ -38,6 +46,7 @@ struct LLVM_Generator {
     String obj_output_name;
     llvm::Module  *llvm_module;
     llvm::LLVMContext *llvm_context;
+    llvm::orc::ThreadSafeContext *thread_safe_context;
     llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter> *irb;
     
     llvm::Type *type_void;
@@ -74,6 +83,26 @@ struct LLVM_Generator {
     void emit_scope(Ast_Scope *scope);
     void emit_function(Ast_Function *function);
     llvm::Value *emit_expression(Ast_Expression *expression, bool is_lvalue = false);
+};
+
+struct LLVM_Jitter {
+    /*
+    llvm::orc::ExecutionSession         *execution_session;
+    llvm::orc::RTDyldObjectLinkingLayer *object_layer;
+    llvm::orc::IRCompileLayer           *compile_layer;
+    llvm::orc::MangleAndInterner        *mangler;
+    */
+    
+    Compiler *compiler;
+    LLVM_Generator *llvm;
+    
+    LLVM_Jitter(LLVM_Generator *_llvm) {
+        this->llvm     = _llvm;
+        this->compiler = _llvm->compiler;
+    }
+    
+    void init();
+    void *lookup_symbol(String name);
 };
 
 
