@@ -15,4 +15,5 @@ func main() {
 	var value1 = test(-1);
     var value2 = test(cast(float) -1);
 	printf("%d, %f\n".data, value1, value2);
+    printf("Hello world!\n".data);
 }

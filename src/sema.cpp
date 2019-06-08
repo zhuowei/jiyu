@@ -1426,7 +1426,7 @@ void Sema::typecheck_function(Ast_Function *function) {
     } else {
         function->linkage_name = get_mangled_name(compiler, function);
         String name = function->linkage_name;
-        printf("Mangled name: '%.*s'\n", name.length, name.data);
+        // printf("Mangled name: '%.*s'\n", name.length, name.data);
     }
     
     if (function->is_c_function) {

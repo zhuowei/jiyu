@@ -929,7 +929,7 @@ void LLVM_Jitter::init() {
     cantFail(CompileLayer.add(ES.getMainJITDylib(),
                               ThreadSafeModule(std::unique_ptr<Module>(llvm->llvm_module), *llvm->thread_safe_context)));
     
-    auto sym = ES.lookup({&ES.getMainJITDylib()}, Mangle("_H8asdfmain_"));
+    auto sym = ES.lookup({&ES.getMainJITDylib()}, Mangle("main"));
     if (!sym) {
         sym.takeError();
         return;
