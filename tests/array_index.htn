@@ -1,0 +1,11 @@
+
+#load "LibC.htn";
+
+func main() {
+    var arr: [10] uint8;
+    var dat: *uint8 = arr.data;
+
+    dat[1] = 10;
+
+    printf("%d\n".data, dat[1]);
+}

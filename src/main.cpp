@@ -44,6 +44,16 @@ bool read_entire_file(String filepath, String *result) {
     return true;
 }
 
+void perform_load_from_string(Compiler *compiler, String source, Ast_Scope *target_scope) {
+    Lexer *lexer = new Lexer(compiler, source, to_string(""));
+    lexer->tokenize_text();
+    
+    if (compiler->errors_reported) return;
+    
+    Parser *parser = new Parser(lexer);
+    parser->parse_scope(target_scope, false);
+}
+
 void perform_load(Compiler *compiler, String filename, Ast_Scope *target_scope) {
     String source;
     bool success = read_entire_file(filename, &source);
@@ -85,6 +95,23 @@ u8 *get_command_line(Array<String> *strings) {
     return final;
 }
 
+const char *preload_text = R"C01N(
+
+func __strings_match(a: string, b: string) -> bool {
+    if (a.length != b.length) return false;
+    if (a.data == null && b.data != null) return false;
+    if (b.data == null && a.data != null) return false;
+    if (a.data == null && b.data == null) return true;
+    
+    for 0..a.length-1 {
+        if (a[it] != b[it]) return false;
+    }
+
+    return true;
+}
+
+)C01N";
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         printf("ERROR: no input files\n");
@@ -110,6 +137,7 @@ int main(int argc, char **argv) {
         return -1;
     }
     
+    perform_load_from_string(&compiler, to_string((char *)preload_text), compiler.global_scope);
     perform_load(&compiler, filename, compiler.global_scope);
     
     if (compiler.errors_reported) return -1;

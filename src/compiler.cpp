@@ -178,6 +178,7 @@ void Compiler::init() {
     atom_it        = make_atom(to_string("it"));
     atom_it_index  = make_atom(to_string("it_index"));
     atom_main      = make_atom(to_string("main"));
+    atom___strings_match = make_atom(to_string("__strings_match"));
 }
 
 Atom *Compiler::make_atom(String name) {

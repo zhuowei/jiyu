@@ -1,6 +1,17 @@
+
+#load "Array.htn";
+#load "GLFW.htn";
+#load "OpenGL.htn";
+#load "LibC.htn";
+
 // htn stuff
 
-typealias c_string = *uint8;
+func to_c_string(input: string) -> c_string {
+	var data: c_string = cast(c_string) malloc(cast(size_t) input.length + 1);
+	memcpy(data, input.data, cast(size_t) input.length);
+	data[input.length] = 0;
+	return data;
+}
 
 func c_style_strlen(input: c_string) -> int64 {
 	var cursor = input;
@@ -18,139 +29,39 @@ func to_string(input: c_string) -> string {
 	return s;
 }
 
-func get_lines(input: string) {
-	
-}
+func split(input: string, delim: uint8) -> [] string {
+	var start = 0;
+	var cursor = 0;
 
+	var output: [..] string;
 
-let NEW_MEM_CHUNK_ELEMENT_COUNT = 16;
+	while cursor < input.length {
+		if input[cursor] == delim {
+			var o: string;
+			o.data = input.data + start;
+			o.length = cursor - start;
+			array_add(*output, o);
 
-func array_reserve<T>(array: *[..] T, _amount: int) {
-	var amount = _amount;
-	if amount <= 0
-		amount = NEW_MEM_CHUNK_ELEMENT_COUNT;
+			start = cursor + 1;
+		}
 
-	var new_mem = cast(*T) malloc(amount * sizeof(T));
-
-	if array.data != null {
-		memcpy(new_mem, array.data, cast(size_t) (array.count * sizeof(T)) );
-		free(array.data);
+		cursor = cursor + 1;
 	}
 
-	array.data = new_mem;
-	array.allocated = amount;
+	var o: string;
+	o.data = input.data + start;
+	o.length = cursor - start;
+	array_add(*output, o);
+
+	var static: [] string;
+	static.data = output.data;
+	static.count = output.count;
+	return static;
 }
 
-func array_resize<T>(array: *[..] T, _amount: int) {
-	array_reserve(array, _amount);
-	array.count = _amount;
+func get_lines(input: string) -> [] string {
+	return split(input, '\n');
 }
-
-func array_add<T>(array: *[..] T, item: T) {
-	if (array.count+1 >= array.allocated) array_reserve(array, cast(int) 
-	
-	array.allocated + NEW_MEM_CHUNK_ELEMENT_COUNT);
-
-	array.count = array.count + 1;
-	(<<array)[array.count-1] = item;
-}
-
-func array_reset<T>(array: *[..] T) {
-	array.count = 0;
-	array.allocated = 0;
-
-	if array.data != null free(array.data);
-	array.data = null;
-}
-
-// C library
-func @c_function printf(fmt: *uint8, temporary_c_vararg);
-
-typealias FILE = void;
-func @c_function fopen(path: c_string, mode: c_string) -> *FILE;
-func @c_function fclose(file: *FILE) -> int32;
-func @c_function ftell(file: *FILE) -> int32; // long int, this should be int32 on Windows but s64 on Linux/Mac
-func @c_function fread(ptr: *void, size: size_t, count: size_t, file: *FILE) -> size_t;
-
-let SEEK_SET = 0;
-let SEEK_CUR = 1;
-let SEEK_END = 2;
-
-func @c_function fseek(file: *FILE, offset: int32 /*long int*/, origin: int32);
-
-typealias size_t = uint32; // @FixMe I dont know if this is right
-
-func @c_function malloc(size: size_t) -> *void;
-func @c_function free(ptr: *void);
-func @c_function memcpy(dest: *void, src: *void, count: size_t);
-
-// GLFW
-func @c_function glfwInit();
-func @c_function glfwCreateWindow(width: int32, height: int32, title: *uint8, unk: int64, unk1: int64) -> *void;
-func @c_function glfwTerminate();
-func @c_function glfwMakeContextCurrent(window: *void);
-func @c_function glfwWindowShouldClose(window: *void) -> bool;
-func @c_function glfwSwapBuffers(window: *void);
-func @c_function glfwPollEvents();
-
-// OpenGL
-typealias GLenum     = uint32;
-typealias GLboolean  = uint8;
-typealias GLbitfield = uint32;
-typealias GLbyte     = int8;
-typealias GLshort    = int16;
-typealias GLint      = int32;
-typealias GLsizei    = int32;
-typealias GLubyte    = uint8;
-typealias GLushort   = uint16;
-typealias GLuint     = uint32;
-typealias GLfloat    = float;
-typealias GLclampf   = float;
-typealias GLdouble   = double;
-typealias GLclampd   = double;
-typealias GLvoid     = void;
-
-let GL_CURRENT_BIT         : GLbitfield = 0x00000001;
-let GL_POINT_BIT           : GLbitfield = 0x00000002;
-let GL_LINE_BIT            : GLbitfield = 0x00000004;
-let GL_POLYGON_BIT         : GLbitfield = 0x00000008;
-let GL_POLYGON_STIPPLE_BIT : GLbitfield = 0x00000010;
-let GL_PIXEL_MODE_BIT      : GLbitfield = 0x00000020;
-let GL_LIGHTING_BIT        : GLbitfield = 0x00000040;
-let GL_FOG_BIT             : GLbitfield = 0x00000080;
-let GL_DEPTH_BUFFER_BIT    : GLbitfield = 0x00000100;
-let GL_ACCUM_BUFFER_BIT    : GLbitfield = 0x00000200;
-let GL_STENCIL_BUFFER_BIT  : GLbitfield = 0x00000400;
-let GL_VIEWPORT_BIT        : GLbitfield = 0x00000800;
-let GL_TRANSFORM_BIT       : GLbitfield = 0x00001000;
-let GL_ENABLE_BIT          : GLbitfield = 0x00002000;
-let GL_COLOR_BUFFER_BIT    : GLbitfield = 0x00004000;
-let GL_HINT_BIT            : GLbitfield = 0x00008000;
-let GL_EVAL_BIT            : GLbitfield = 0x00010000;
-let GL_LIST_BIT            : GLbitfield = 0x00020000;
-let GL_TEXTURE_BIT         : GLbitfield = 0x00040000;
-let GL_SCISSOR_BIT         : GLbitfield = 0x00080000;
-let GL_ALL_ATTRIB_BITS     : GLbitfield = 0xFFFFFFFF;
-
-let GL_POINTS              : GLenum = 0x0000;
-let GL_LINES               : GLenum = 0x0001;
-let GL_LINE_LOOP           : GLenum = 0x0002;
-let GL_LINE_STRIP          : GLenum = 0x0003;
-let GL_TRIANGLES           : GLenum = 0x0004;
-let GL_TRIANGLE_STRIP      : GLenum = 0x0005;
-let GL_TRIANGLE_FAN        : GLenum = 0x0006;
-let GL_QUADS               : GLenum = 0x0007;
-let GL_QUAD_STRIP          : GLenum = 0x0008;
-let GL_POLYGON             : GLenum = 0x0009;
-
-func @c_function glBegin(mode: GLenum);
-func @c_function glEnd();
-func @c_function glColor3f(r: GLfloat, g: GLfloat, b: GLfloat);
-func @c_function glVertex3f(x: GLfloat, y: GLfloat, z: GLfloat);
-
-func @c_function glClearColor(r: GLclampf, g: GLclampf, b: GLclampf, a: GLclampf);
-func @c_function glClear(bits: GLbitfield);
-
 
 func read_entire_file(path: string) -> string {
 	// @FixMe this only works if path points to a constant string
@@ -175,14 +86,14 @@ func read_entire_file(path: string) -> string {
 	return result;
 }
 
-struct Vertex {
+struct Vector3 {
 	var x: float;
 	var y: float;
 	var z: float;
 }
 
-func make_Vertex(x: float, y: float, z: float) -> Vertex {
-	var v: Vertex;
+func make_Vector3(x: float, y: float, z: float) -> Vector3 {
+	var v: Vector3;
 	v.x = x;
 	v.y = y;
 	v.z = z;
@@ -190,28 +101,115 @@ func make_Vertex(x: float, y: float, z: float) -> Vertex {
 }
 
 struct Model {
-	vertices: [..] Vertex;
+	var vertices:   [..] Vector3;
+	var normals:    [..] Vector3;
+	var tex_coords: [..] Vector3;
+}
+
+func get_float(input: string) -> float {
+	var c_str: [256] uint8;
+	if input.length >= 256 return 0;
+
+	memcpy(c_str.data, input.data, cast(size_t) input.length);
+	c_str[input.length] = 0;
+
+	var value = atof(c_str.data);
+	return cast(float) value; 
+}
+
+func get_int(input: string) -> int32 {
+	var c_str: [256] uint8;
+	if input.length >= 256 return 0;
+
+	memcpy(c_str.data, input.data, cast(size_t) input.length);
+	c_str[input.length] = 0;
+
+	var value = atoi(c_str.data);
+	return value; 
 }
 
 func load_obj(path: string) -> Model {
 	var data = read_entire_file(path);
 
+	var lines = get_lines(data);
+	var model: Model;
 
+	var vertices:   [..] Vector3;
+	var normals:    [..] Vector3;
+	var tex_coords: [..] Vector3;
+
+	// printf("char: %d\n".data, ' ');
+	for lines {
+		var splits = split(it, ' ');
+
+		// printf("LINE: '%.*s'\n".data, it.length, it.data);
+		for splits {
+			// printf("SPLIT: '%.*s'\n".data, it.length, it.data);
+		}
+
+		// @Cleanup continue keyword
+		if splits.count == 0 {
+			// do nothing
+		} else if splits[0] == "v" {
+			var x = get_float(splits[1]);
+			var y = get_float(splits[2]);
+			var z = get_float(splits[3]);
+			array_add(*vertices, make_Vector3(x, y, z));
+		} else if splits[0] == "vn" {
+			var x = get_float(splits[1]);
+			var y = get_float(splits[2]);
+			var z = get_float(splits[3]);
+			array_add(*normals, make_Vector3(x, y, z));
+		} else if splits[0] == "f" {
+			{
+				var sub = split(splits[1], '/');
+				var vi = get_int(sub[0]);
+				var ni = get_int(sub[2]);
+				array_add(*model.vertices, vertices[vi - 1]);
+				array_add(*model.normals,  normals[ni - 1]);
+			}
+
+			{
+				var sub = split(splits[2], '/');
+				var vi = get_int(sub[0]);
+				var ni = get_int(sub[2]);
+
+				array_add(*model.vertices, vertices[vi - 1]);
+				array_add(*model.normals,  normals[ni - 1]);
+			}
+
+			{
+				var sub = split(splits[3], '/');
+				var vi = get_int(sub[0]);
+				var ni = get_int(sub[2]);
+
+				array_add(*model.vertices, vertices[vi - 1]);
+				array_add(*model.normals,  normals[ni - 1]);
+			}
+		}
+	}
+
+	free(lines.data);
+	free(data.data);
+	return model;
+}
+
+func perspective(fov: float, aspect: float, near: float, far: float) {
+	var fh = tan(fov) * near;
+	var fw = fh * aspect;
+
+	glFrustum(-fw, fw, -fh, fh, near, far);
 }
 
 func main() {
 	glfwInit();
 
-	var array: [..] Vertex;
-	/*
-	add_vertex(*array,  0,  1, 0);	
-	add_vertex(*array,  1,  -1, 0);
-	add_vertex(*array, -1,  -1, 0);
-	*/
+	var model = load_obj("monkey.obj");
 
-	array_add(*array, make_Vertex( 0, 1, 0));
-	array_add(*array, make_Vertex( 1,-1, 0));
-	array_add(*array, make_Vertex(-1,-1, 0));
+	var array: [..] Vector3;
+	array_add(*array, make_Vector3( 0, 1, 0));
+	array_add(*array, make_Vector3( 1,-1, 0));
+	array_add(*array, make_Vector3(-1,-1, 0));
 
 	for 0..array.count-1 {
 		var a = array[it];
@@ -234,15 +232,40 @@ func main() {
 
 	glfwMakeContextCurrent(window);
 
+	glEnable(GL_LIGHTING);
+	glEnable(GL_LIGHT0);
+
+	glEnable(GL_DEPTH_TEST);
+
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+
+	var width: float = 1920;
+	var height: float = 1080;
+	perspective(1, width / height, 1, 1000);
+
+	glMatrixMode(GL_MODELVIEW);
+	
+	var n: float = 0;
+
 	while glfwWindowShouldClose(window) == false {
 		glClearColor(0, 0, 0, 1);
-		glClear(GL_COLOR_BUFFER_BIT);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		glLoadIdentity();
+		glTranslatef(0, 0, -3);
+		// glRotatef(n, 0, 1, 0);
 
 		glBegin(GL_TRIANGLES);
-		for array {
-			glVertex3f(it.x, it.y, it.z);
+		for 0..model.vertices.count-1 {
+			var v = model.vertices[it];
+			var n = model.normals[it];
+			glVertex3f(v.x, v.y, v.z);
+			glNormal3f(n.x, n.y, n.z);
 		}
 		glEnd();
+
+		n = n + (cast(float)1 / 4);
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();

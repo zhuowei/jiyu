@@ -94,6 +94,7 @@ struct Compiler {
     Atom *atom_it;
     Atom *atom_it_index;
     Atom *atom_main;
+    Atom *atom___strings_match;
     
     Array<Ast_Function *> function_emission_queue;
     

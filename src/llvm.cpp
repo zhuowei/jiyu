@@ -333,7 +333,15 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 
                 // @TODO NUW NSW?
                 switch (bin->operator_type) {
-                    case Token::STAR:    return irb->CreateMul(left, right);
+                    case Token::STAR: {
+                        auto info = get_type_info(bin->left);
+                        if (is_int_type(info)) {
+                            return irb->CreateMul(left, right);
+                        } else {
+                            assert(info->type == Ast_Type_Info::FLOAT);
+                            return irb->CreateFMul(left, right);
+                        }
+                    }
                     case Token::PERCENT: assert(false); // @Incomplete
                     case Token::SLASH: {
                         auto info = get_type_info(bin->left);
@@ -361,6 +369,10 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                             
                             Value *result = irb->CreateAdd(left_int, right_int);
                             return irb->CreateIntToPtr(result, get_type(left_type));
+                        } else if (is_float_type(left_type)) {
+                            assert(is_float_type(right_type));
+
+                            return irb->CreateFAdd(left, right);
                         }
                         
                         return irb->CreateAdd(left, right);
@@ -379,7 +391,9 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                         
                         return irb->CreateSub(left, right);
                     }
-                    case Token::EQ_OP: return irb->CreateICmpEQ(left, right);
+                    case Token::EQ_OP: {
+                        return irb->CreateICmpEQ(left, right);
+                    }
                     case Token::NE_OP: return irb->CreateICmpNE(left, right);
                     case Token::LE_OP: {
                         auto info = get_type_info(bin->left);
@@ -434,6 +448,17 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                             assert(info->type == Ast_Type_Info::FLOAT);
                             return irb->CreateFCmpUGT(left, right);
                         }
+                    }
+
+                    case Token::VERTICAL_BAR: {
+                        return irb->CreateOr(left, right);
+                    }
+
+                    case Token::AND_OP: {
+                        assert(left->getType()  == type_i1);
+                        assert(right->getType() == type_i1);
+
+                        return irb->CreateAnd(left, right);
                     }
                     default: assert(false);
                 }
@@ -613,17 +638,16 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             if (_if->then_statement) {
                 irb->SetInsertPoint(then_block);
                 emit_expression(_if->then_statement);
-                irb->SetInsertPoint(then_block);
+    
             }
-            if (!then_block->getTerminator()) irb->CreateBr(next_block);
+            if (!irb->GetInsertBlock()->getTerminator()) irb->CreateBr(next_block);
             
             if (_if->else_statement) {
                 else_block = BasicBlock::Create(*llvm_context, "else_target", current_block->getParent());
                 irb->SetInsertPoint(else_block);
                 emit_expression(_if->else_statement);
-                irb->SetInsertPoint(else_block);
                 
-                if (!else_block->getTerminator()) irb->CreateBr(next_block);
+                if (!irb->GetInsertBlock()->getTerminator()) irb->CreateBr(next_block);
                 
                 failure_target = else_block;
             }
@@ -786,15 +810,18 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 
                 if (!is_lvalue) return irb->CreateLoad(element);
                 return element;
+            } else if (type->type == Ast_Type_Info::POINTER) {
+                auto ptr = irb->CreateLoad(array);
+                auto element = irb->CreateGEP(ptr, {index});
+
+                if (!is_lvalue) return irb->CreateLoad(element);
+                return element;
             }
-            
-            // @Incomplete dynamic and unknown size array indexing
-            
+
             // @Cleanup type_i32 use for array indexing
             auto element = irb->CreateGEP(array, {ConstantInt::get(type_i32, 0), index});
             
             if (!is_lvalue) return irb->CreateLoad(element);
-            
             return element;
         }
     }

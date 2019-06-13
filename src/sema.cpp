@@ -111,54 +111,60 @@ bool type_points_to_void_eventually(Ast_Type_Info *ptr) {
     return false;
 }
 
-void print_type(Ast_Type_Info *info) {
+void print_type_to_builder(String_Builder *builder, Ast_Type_Info *info) {
     if (info->type == Ast_Type_Info::INTEGER) {
         if (info->is_signed) {
             switch (info->size) {
-                case 1: printf("int8"); return;
-                case 2: printf("int16"); return;
-                case 4: printf("int32"); return;
-                case 8: printf("int64"); return;
+                case 1: builder->print("int8"); return;
+                case 2: builder->print("int16"); return;
+                case 4: builder->print("int32"); return;
+                case 8: builder->print("int64"); return;
                 default: assert(false);
             }
         } else {
             switch (info->size) {
-                case 1: printf("uint8"); return;
-                case 2: printf("uint16"); return;
-                case 4: printf("uint32"); return;
-                case 8: printf("uint64"); return;
+                case 1: builder->print("uint8"); return;
+                case 2: builder->print("uint16"); return;
+                case 4: builder->print("uint32"); return;
+                case 8: builder->print("uint64"); return;
                 default: assert(false);
             }
         }
     }
     
     if (info->type == Ast_Type_Info::BOOL) {
-        printf("bool");
+        builder->print("bool");
         return;
     }
     
     if (info->type == Ast_Type_Info::FLOAT) {
         if (info->size == 4) {
-            printf("float");
+            builder->print("float");
         } else {
             assert(info->size == 8);
-            printf("double");
+            builder->print("double");
         }
         return;
     }
     
     if (info->type == Ast_Type_Info::POINTER) {
-        printf("*");
-        print_type(info->pointer_to);
+        builder->print("*");
+        print_type_to_builder(builder, info->pointer_to);
         return;
     }
     
     if (info->type == Ast_Type_Info::STRING) {
-        printf("string");
+        builder->print("string");
         return;
     }
     
     assert(false);
+}
+
+String type_to_string(Ast_Type_Info *info) {
+    String_Builder builder;
+    print_type_to_builder(&builder, info);
+    return builder.to_string();
 }
 
 Ast_Expression *cast_int_to_int(Ast_Expression *expr, Ast_Type_Info *target) {
@@ -472,9 +478,17 @@ Tuple<bool, u64> Sema::function_call_is_viable(Ast_Function_Call *call, Ast_Func
             
             if (compiler->errors_reported) return MakeTuple<bool, u64>(false, 0);
             
-            if (!types_match(value->type_info, param->type_info)) {
+            auto value_type = get_type_info(value);
+            auto param_type = get_type_info(param);
+            if (!types_match(value_type, param_type)) {
                 if (perform_full_check) {
-                    compiler->report_error(value, "Mismatch in function call argument types.\n");
+                    auto wanted = type_to_string(param_type);
+                    auto given  = type_to_string(value_type);
+                    compiler->report_error(value, "Mismatch in function call argument types. (Wanted %.*s, Given %.*s).\n",
+                                            wanted.length, wanted.data, given.length, given.data);
+
+                    free(wanted.data);
+                    free(given.data);
                 }
                 return MakeTuple<bool, u64>(false, 0);
             }
@@ -604,13 +618,12 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 bool allow_coerce_to_ptr_void = true;
                 typecheck_and_implicit_cast_expression_pair(decl, decl->initializer_expression, nullptr, &decl->initializer_expression, allow_coerce_to_ptr_void);
                 if (!types_match(get_type_info(decl), get_type_info(decl->initializer_expression))) {
-                    // @TODO report the types here
-                    // @TODO attempt to implciit cast if available
-                    compiler->report_error(decl->initializer_expression, "Attempt to initialize variable with expression of incompatible type.\n");
-                    print_type(decl->type_info);
-                    printf("\n");
-                    print_type(decl->initializer_expression->type_info);
-                    printf("\n");
+                    auto wanted = type_to_string(get_type_info(decl));
+                    auto given  = type_to_string(get_type_info(decl->initializer_expression));
+                    compiler->report_error(decl->initializer_expression, "Attempt to initialize variable with expression of incompatible type (Wanted %.*s, Given %.*s).\n",
+                                            wanted.length, wanted.data, given.length, given.data);
+                    free(wanted.data);
+                    free(given.data);
                     return;
                 }
             }
@@ -644,12 +657,28 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 || bin->operator_type == Token::LE_OP
                 || bin->operator_type == Token::GE_OP
                 || bin->operator_type == '>'
-                || bin->operator_type == '<') {
+                || bin->operator_type == '<'
+                || bin->operator_type == Token::AND_OP
+                || bin->operator_type == Token::OR_OP) {
                 bin->type_info = compiler->type_bool;
             }
-            
+
             auto left_type  = get_type_info(bin->left);
             auto right_type = get_type_info(bin->right);
+
+            if (bin->operator_type == Token::AND_OP ||
+                bin->operator_type == Token::OR_OP) {
+                if (left_type->type != Ast_Type_Info::BOOL) {
+                    compiler->report_error(bin->left, "Left-hand side of boolean operator must be of type bool.\n");
+                }
+
+                if (right_type->type != Ast_Type_Info::BOOL) {
+                    compiler->report_error(bin->right, "Right-hand side of boolean operator must be of type bool.\n");
+                }
+
+                if (compiler->errors_reported) return;
+            }
+            
             if (!types_match(left_type, right_type)) {
                 if ((bin->operator_type == Token::PLUS
                      || bin->operator_type == Token::MINUS) &&
@@ -661,6 +690,22 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 // @TOOD report operator
                 compiler->report_error(bin, "Incompatible types found on lhs and rhs of binary operator.");
                 return;
+            }
+
+            if (bin->operator_type == Token::EQ_OP) {
+                if (left_type->type == Ast_Type_Info::STRING) {
+                    Ast_Function_Call *call = new Ast_Function_Call();
+                    call->text_span = bin->text_span;
+
+                    call->identifier = make_identifier(compiler->atom___strings_match);
+                    call->identifier->enclosing_scope = compiler->global_scope;
+                    call->argument_list.add(bin->left);
+                    call->argument_list.add(bin->right);
+
+                    typecheck_expression(call);
+                    bin->substitution = call;
+                    return;
+                }
             }
             
             return;
@@ -1163,25 +1208,25 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 auto return_type = get_type_info(function->return_decl);
                 
                 if (!ret->expression) {
-                    compiler->report_error(ret, "'return' statement must return an expression of function return type.\n");
-                    // @Cleanup
-                    print_type(return_type);
-                    printf("\n");
+                    String name = type_to_string(return_type);
+                    compiler->report_error(ret, "'return' statement must return an expression of function return type %.*s.\n", name.length, name.data);
                     return;
                 }
                 
                 typecheck_expression(ret->expression);
+                bool allow_coerce_to_ptr_void = false;
+                typecheck_and_implicit_cast_expression_pair(ret->expression, function->return_decl, &ret->expression, nullptr, allow_coerce_to_ptr_void);
                 if (compiler->errors_reported) return;
                 
                 auto value_type = get_type_info(ret->expression);
                 
                 if (!types_match(value_type, return_type)) {
-                    compiler->report_error(ret, "Type of return expression does not match function return type.\n");
-                    // @Cleanup
-                    print_type(return_type);
-                    printf("\n");
-                    print_type(value_type);
-                    printf("\n");
+                    auto wanted = type_to_string(return_type);
+                    auto given  = type_to_string(value_type);
+                    compiler->report_error(ret->expression, "Type of return expression does not match function return type. (Wanted %.*s, Given %.*s).\n",
+                                            wanted.length, wanted.data, given.length, given.data);
+                    free(wanted.data);
+                    free(given.data);
                     return;
                 }
             } else if (ret->expression) {
@@ -1233,6 +1278,8 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         case AST_STRUCT: {
             auto _struct = static_cast<Ast_Struct *>(expression);
             typecheck_scope(&_struct->member_scope);
+            if (compiler->errors_reported) return;
+
             _struct->type_value = make_struct_type(_struct);
             _struct->type_info = compiler->type_info_type;
             return;

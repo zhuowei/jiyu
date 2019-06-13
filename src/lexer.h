@@ -94,7 +94,7 @@ struct Token {
     String filename;
     
     String string;
-    s64 integer;
+    s64 integer = 0;
     
     Token() {}
     

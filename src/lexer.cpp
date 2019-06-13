@@ -239,6 +239,7 @@ Token Lexer::lex_token() {
         for (string_length_type i = 0; i < st.length; ++i) {
             out.integer = out.integer | (((u64)st[i] & 0xFF) << i*8);
         }
+
         return out;
     } else if (text[current_char] == '-') {
         if (current_char+1 < text.length && text[current_char+1] == '>') {
