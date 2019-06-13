@@ -44,6 +44,23 @@ bool read_entire_file(String filepath, String *result) {
     return true;
 }
 
+void perform_load(Compiler *compiler, String filename, Ast_Scope *target_scope) {
+    String source;
+    bool success = read_entire_file(filename, &source);
+    if (!success) {
+        printf("Could not open file: %.*s\n", (int)filename.length, filename.data);
+        return;
+    }
+    
+    Lexer *lexer = new Lexer(compiler, source, filename);
+    lexer->tokenize_text();
+    
+    if (compiler->errors_reported) return;
+    
+    Parser *parser = new Parser(lexer);
+    parser->parse_scope(target_scope, false);
+}
+
 u8 *get_command_line(Array<String> *strings) {
     string_length_type total_length = 0;
     
@@ -67,14 +84,6 @@ u8 *get_command_line(Array<String> *strings) {
     final[cursor++] = 0;
     return final;
 }
-
-#if WIN32
-
-void run_command(Array<String> *args) {
-    
-}
-
-#endif
 
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -101,34 +110,7 @@ int main(int argc, char **argv) {
         return -1;
     }
     
-    String source;
-    bool success = read_entire_file(filename, &source);
-    if (!success) {
-        printf("Could not open file: %.*s\n", (int)filename.length, filename.data);
-        return -1;
-    }
-    
-    Lexer *lexer = new Lexer(&compiler, source, filename);
-    lexer->tokenize_text();
-    
-    if (compiler.errors_reported) return -1;
-    
-    Parser *parser = new Parser(lexer);
-    compiler.parser = parser;
-    
-    /*
-    printf("File contents: %.*s\n", source.length, source.data);
-    
-    printf("Tokens:\n");
-    
-    printf("TOKEN COUNT: %d\n", lexer->tokens.count);
-    for (auto &t : lexer->tokens) {
-    String text = t.text_span.get_text();
-    printf("'%.*s'\n", text.length, text.data);
-    }
-    */
-    
-    compiler.parser->parse_scope(compiler.global_scope, false);
+    perform_load(&compiler, filename, compiler.global_scope);
     
     if (compiler.errors_reported) return -1;
     
@@ -142,7 +124,7 @@ int main(int argc, char **argv) {
     compiler.llvm_gen = new LLVM_Generator(&compiler);
     compiler.llvm_gen->init();
     
-    // @Incomplete globa variables
+    // @Incomplete global variables
     
     for (auto &function : compiler.function_emission_queue) {
         compiler.llvm_gen->emit_function(function);

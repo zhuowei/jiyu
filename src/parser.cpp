@@ -723,6 +723,34 @@ Ast_Expression *Parser::parse_statement() {
         if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
         return ret;
     }
+
+    if (token->type == '#') {
+        next_token();
+
+        token = peek_token();
+        if (!expect_and_eat(Token::IDENTIFIER)) return nullptr;
+
+        if (token->string != to_string("load")) {
+            String s  = token->string;
+            compiler->report_error(token, "Unknown compiler directive '%.*s'.\n", s.length, s.data);
+            return nullptr;
+        }
+
+        token = peek_token();
+        String name = token->string;
+        String base_path = basename(lexer->filename);
+
+        next_token();
+        if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
+
+        const int MAX_PATH = 512;
+        char fullname[MAX_PATH];
+        snprintf(fullname, MAX_PATH, "%.*s%.*s", base_path.length, base_path.data, name.length, name.data);
+
+        void perform_load(Compiler *compiler, String filename, Ast_Scope *target_scope);
+        perform_load(compiler, to_string(fullname), get_current_scope());
+        return nullptr;
+    }
     
     if (token->type == '{') {
         auto parent = get_current_scope();
@@ -1054,7 +1082,6 @@ Ast_Function *Parser::parse_function() {
     
     
     if (peek_token()->type == '{') {
-        auto parent = get_current_scope();
         Ast_Scope *scope = AST_NEW(Ast_Scope);
         scope->parent = &function->arguments_scope;
         parse_scope(scope, true);

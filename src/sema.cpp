@@ -794,6 +794,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             
             if (overload_set.count == 0) {
                 compiler->report_error(call, "Function call identifier does not name a function.");
+                return;
             }
             
             Ast_Function *function = nullptr;

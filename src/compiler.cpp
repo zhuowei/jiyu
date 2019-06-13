@@ -204,7 +204,7 @@ void Compiler::report_error_valist(String filename, String source, Span error_lo
     string_length_type l1;
     string_length_type c1;
     
-    error_location.map_to_text_coordinates(parser->lexer->text, &l0, &c0, &l1, &c1);
+    error_location.map_to_text_coordinates(source, &l0, &c0, &l1, &c1);
     
     printf("%.*s:%d,%d: ", filename.length, filename.data, l0, c0);
     vprintf(fmt, args);

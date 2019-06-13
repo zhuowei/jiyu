@@ -53,7 +53,6 @@ struct String {
     }
 };
 
-
 inline void advance(String *s, s64 amount = 1) {
     if (s->length) {
         s->data += amount;
@@ -90,6 +89,10 @@ inline bool operator==(const String &s, const String &t) {
     return true;
 }
 
+inline bool operator!=(const String &s, const String &t) {
+    return !(s == t);
+}
+
 inline String copy_string(String s) {
     String out;
     out.length = s.length;
@@ -100,6 +103,16 @@ inline String copy_string(String s) {
         memcpy(out.data, s.data, length);
     }
     return out;
+}
+
+inline String basename(String s) {
+    while (s.length) {
+        if (s[s.length-1] == '/') return s;
+
+        s.length--;
+    }
+
+    return s;
 }
 
 struct Span {

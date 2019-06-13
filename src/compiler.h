@@ -53,8 +53,7 @@ struct Atom_Table {
 
 struct Compiler {
     s64 errors_reported = 0;
-    
-    Parser *parser;
+
     Sema *sema;
     Copier *copier;
     LLVM_Generator *llvm_gen;
