@@ -156,12 +156,13 @@ void Compiler::init() {
     type_float32 = make_float_type(4);
     type_float64 = make_float_type(8);
     
-    type_string = new Ast_Type_Info();
-    type_string->type = Ast_Type_Info::STRING;
-    
     type_string_data = make_pointer_type(type_uint8);
     // @FixMe
     type_string_length = type_int64; // @TargetInfo
+
+    type_string = new Ast_Type_Info();
+    type_string->type = Ast_Type_Info::STRING;
+    type_string->size = type_string_length->size + type_string_data->size;
     
     type_array_count   = type_int64; // @TargetInfo
     

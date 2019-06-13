@@ -564,7 +564,6 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 
                 // @FixMe pass in ident
                 compiler->report_error(ident, "Undeclared identifier '%.*s'\n", name.length, name.data);
-                __builtin_debugtrap();
             } else {
                 typecheck_expression(decl);
                 
@@ -1304,8 +1303,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             }
             
             auto type = resolve_type_inst(size->target_type_inst);
-            // size->type_info = type;
-            assert(type->size > 0);
+            assert(type->size >= 0);
             
             auto lit = make_integer_literal(type->size, compiler->type_int32);
             lit->text_span = size->text_span;

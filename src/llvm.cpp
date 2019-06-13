@@ -122,7 +122,7 @@ void LLVM_Generator::finalize() {
     legacy::PassManager pass;
     auto FileType = TargetMachine::CGFT_ObjectFile;
     
-    llvm_module->dump();
+    // llvm_module->dump();
     
     pass.add(createVerifierPass(false));
     if (TargetMachine->addPassesToEmitFile(pass, dest, nullptr, FileType)) {
