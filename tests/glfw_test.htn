@@ -18,12 +18,14 @@ func to_string(input: c_string) -> string {
 	return s;
 }
 
+func get_lines(input: string) {
+	
+}
+
 
 let NEW_MEM_CHUNK_ELEMENT_COUNT = 16;
 
-func array_reserve(array: *[..] Vertex, _amount: int) {
-	typealias T = Vertex;
-
+func array_reserve<T>(array: *[..] T, _amount: int) {
 	var amount = _amount;
 	if amount <= 0
 		amount = NEW_MEM_CHUNK_ELEMENT_COUNT;
@@ -39,12 +41,12 @@ func array_reserve(array: *[..] Vertex, _amount: int) {
 	array.allocated = amount;
 }
 
-func array_resize(array: *[..] Vertex, _amount: int) {
+func array_resize<T>(array: *[..] T, _amount: int) {
 	array_reserve(array, _amount);
 	array.count = _amount;
 }
 
-func array_add(array: *[..] Vertex, item: Vertex) {
+func array_add<T>(array: *[..] T, item: T) {
 	if (array.count+1 >= array.allocated) array_reserve(array, cast(int) 
 	
 	array.allocated + NEW_MEM_CHUNK_ELEMENT_COUNT);
@@ -53,15 +55,13 @@ func array_add(array: *[..] Vertex, item: Vertex) {
 	(<<array)[array.count-1] = item;
 }
 
-func array_reset(array: *[..] Vertex) {
+func array_reset<T>(array: *[..] T) {
 	array.count = 0;
 	array.allocated = 0;
 
 	if array.data != null free(array.data);
 	array.data = null;
 }
-
-
 
 // C library
 func @c_function printf(fmt: *uint8, temporary_c_vararg);
@@ -175,14 +175,6 @@ func read_entire_file(path: string) -> string {
 	return result;
 }
 
-/*
-func add_vertex(array: *[..] float, v0: float, v1: float, v2: float) {
-	array_add(array, v0);
-	array_add(array, v1);
-	array_add(array, v2);
-}
-*/
-
 struct Vertex {
 	var x: float;
 	var y: float;
@@ -195,6 +187,16 @@ func make_Vertex(x: float, y: float, z: float) -> Vertex {
 	v.y = y;
 	v.z = z;
 	return v;
+}
+
+struct Model {
+	vertices: [..] Vertex;
+}
+
+func load_obj(path: string) -> Model {
+	var data = read_entire_file(path);
+
+
 }
 
 func main() {

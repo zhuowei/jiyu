@@ -6,6 +6,7 @@
 #include "parser.h"
 #include "llvm.h"
 #include "sema.h"
+#include "copier.h"
 
 #ifdef WIN32
 #include "microsoft_craziness.h"
@@ -131,6 +132,8 @@ int main(int argc, char **argv) {
     
     if (compiler.errors_reported) return -1;
     
+    compiler.copier = new Copier(&compiler);
+
     compiler.sema = new Sema(&compiler);
     compiler.sema->typecheck_scope(compiler.global_scope);
     

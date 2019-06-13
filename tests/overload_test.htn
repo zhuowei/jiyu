@@ -1,5 +1,5 @@
 
-
+/*
 func test(x: float) -> float {
 	return x;
 }
@@ -7,13 +7,24 @@ func test(x: float) -> float {
 func test(x: int64) -> int64 {
 	return x;
 }
+*/
+
+func poly_test<T>(x: T) -> T {
+    return cast(T) sizeof(T);
+}
 
 func @c_function printf(fmt: *uint8, temporary_c_vararg);
 
 func main() {
 	// this should select test(int64) and not test(float)
+    /*
 	var value1 = test(-1);
     var value2 = test(cast(float) -1);
 	printf("%d, %f\n".data, value1, value2);
     printf("Hello world!\n".data);
+    */
+
+    var a = poly_test(1);
+    var b = poly_test(cast(double) 3);
+    printf("Polymorph test: %d, %f\n".data, a, b);
 }

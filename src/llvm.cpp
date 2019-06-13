@@ -122,7 +122,7 @@ void LLVM_Generator::finalize() {
     legacy::PassManager pass;
     auto FileType = TargetMachine::CGFT_ObjectFile;
     
-    // llvm_module->dump();
+    llvm_module->dump();
     
     pass.add(createVerifierPass(false));
     if (TargetMachine->addPassesToEmitFile(pass, dest, nullptr, FileType)) {
@@ -902,6 +902,8 @@ void LLVM_Generator::emit_function(Ast_Function *function) {
 #include <stdio.h>
 
 void LLVM_Jitter::init() {
+    llvm::sys::DynamicLibrary::LoadLibraryPermanently("OpenGL");
+    llvm::sys::DynamicLibrary::LoadLibraryPermanently("/usr/local/Cellar/glfw/3.3/lib/libglfw.dylib");
     auto JTMB = JITTargetMachineBuilder::detectHost();
     
     if (!JTMB) {

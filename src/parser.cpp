@@ -955,6 +955,7 @@ Ast_Function *Parser::parse_function() {
     if (token->type == Token::LEFT_ANGLE) {
         Ast_Scope *polymorphic_scope = AST_NEW(Ast_Scope);
         polymorphic_scope->is_template_argument_block = true;
+        polymorphic_scope->parent = get_current_scope();
         function->polymorphic_type_alias_scope = polymorphic_scope;
         next_token();
         

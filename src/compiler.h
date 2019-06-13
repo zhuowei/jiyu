@@ -13,6 +13,7 @@ struct Token;
 struct Span;
 struct LLVM_Generator;
 struct Sema;
+struct Copier;
 
 struct Atom {
     String name;
@@ -55,6 +56,7 @@ struct Compiler {
     
     Parser *parser;
     Sema *sema;
+    Copier *copier;
     LLVM_Generator *llvm_gen;
     
     Atom_Table *atom_table;

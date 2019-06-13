@@ -20,6 +20,7 @@ set (HTN_SRCS
     src/compiler.cpp
     src/llvm.cpp
     src/sema.cpp
+    src/copier.cpp
 )
 
 if (WIN32)

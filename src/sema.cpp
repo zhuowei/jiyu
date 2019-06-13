@@ -2,6 +2,7 @@
 #include "sema.h"
 #include "ast.h"
 #include "compiler.h"
+#include "copier.h"
 
 #include <stdio.h>
 
@@ -429,7 +430,14 @@ Ast_Function *Sema::get_polymorph_for_function_call(Ast_Function *template_funct
     // from here we need to make a copy of the template
     // and then attempt to resolve the types of the function arguments
     // and resolve the targets of the template type aliases
-    return nullptr;
+
+    auto polymorph = compiler->copier->polymoprh_function_with_arguments(template_function, &call->argument_list);
+    if (polymorph) {
+        typecheck_function(polymorph);
+        template_function->polymorphed_overloads.add(polymorph);
+    }
+    assert(!polymorph->is_template_function);
+    return polymorph;
 }
 
 Tuple<bool, u64> Sema::function_call_is_viable(Ast_Function_Call *call, Ast_Function *function, bool perform_full_check) {
@@ -556,6 +564,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 
                 // @FixMe pass in ident
                 compiler->report_error(ident, "Undeclared identifier '%.*s'\n", name.length, name.data);
+                __builtin_debugtrap();
             } else {
                 typecheck_expression(decl);
                 
@@ -791,6 +800,10 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             Ast_Function *function = nullptr;
             if (overload_set.count == 1) {
                 function = overload_set[0];
+                if (function->is_template_function) {
+                    function = get_polymorph_for_function_call(function, call);
+                    if (compiler->errors_reported) return;
+                }
             } else {
                 
                 const u64 U64_MAX = 0xFFFFFFFFFFFFFFFF;
@@ -1292,7 +1305,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             
             auto type = resolve_type_inst(size->target_type_inst);
             // size->type_info = type;
-            assert(type->size >= 0);
+            assert(type->size > 0);
             
             auto lit = make_integer_literal(type->size, compiler->type_int32);
             lit->text_span = size->text_span;
@@ -1406,6 +1419,12 @@ void Sema::typecheck_function(Ast_Function *function) {
         // we dont typecheck template functions, we only typecheck polymorphs, which will make it here on their own.
         function->type_info = compiler->type_void;
         return;
+    }
+
+    if (function->polymorphic_type_alias_scope) {
+        for (auto a: function->polymorphic_type_alias_scope->declarations) {
+            typecheck_expression(a);
+        }
     }
     
     for (auto &a : function->arguments) {
