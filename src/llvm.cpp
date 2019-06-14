@@ -371,7 +371,7 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                             return irb->CreateIntToPtr(result, get_type(left_type));
                         } else if (is_float_type(left_type)) {
                             assert(is_float_type(right_type));
-
+                            
                             return irb->CreateFAdd(left, right);
                         }
                         
@@ -449,15 +449,15 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                             return irb->CreateFCmpUGT(left, right);
                         }
                     }
-
+                    
                     case Token::VERTICAL_BAR: {
                         return irb->CreateOr(left, right);
                     }
-
+                    
                     case Token::AND_OP: {
                         assert(left->getType()  == type_i1);
                         assert(right->getType() == type_i1);
-
+                        
                         return irb->CreateAnd(left, right);
                     }
                     default: assert(false);
@@ -638,7 +638,7 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             if (_if->then_statement) {
                 irb->SetInsertPoint(then_block);
                 emit_expression(_if->then_statement);
-    
+                
             }
             if (!irb->GetInsertBlock()->getTerminator()) irb->CreateBr(next_block);
             
@@ -813,11 +813,11 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             } else if (type->type == Ast_Type_Info::POINTER) {
                 auto ptr = irb->CreateLoad(array);
                 auto element = irb->CreateGEP(ptr, {index});
-
+                
                 if (!is_lvalue) return irb->CreateLoad(element);
                 return element;
             }
-
+            
             // @Cleanup type_i32 use for array indexing
             auto element = irb->CreateGEP(array, {ConstantInt::get(type_i32, 0), index});
             
@@ -943,7 +943,7 @@ void LLVM_Jitter::init() {
         DL.takeError();
         return;
     }
-
+    
     ExecutionSession ES;
     RTDyldObjectLinkingLayer ObjectLayer(ES, []() { return llvm::make_unique<SectionMemoryManager>(); });
     IRCompileLayer CompileLayer(ES, ObjectLayer, ConcurrentIRCompiler(*JTMB));
@@ -951,9 +951,14 @@ void LLVM_Jitter::init() {
     MangleAndInterner Mangle(ES, *DL);
     
     ES.getMainJITDylib().setGenerator(cantFail(DynamicLibrarySearchGenerator::GetForCurrentProcess(*DL)));
-
+    
     llvm->llvm_module->setDataLayout(*DL);
     // llvm->llvm_module->dump();
+    
+    if (!llvm->llvm_module->getFunction("main")) {
+        compiler->report_error((Token *)nullptr, "No main function defined for meta program. Aborting.\n");
+        return;
+    }
     
     cantFail(CompileLayer.add(ES.getMainJITDylib(),
                               ThreadSafeModule(std::unique_ptr<Module>(llvm->llvm_module), *llvm->thread_safe_context)));

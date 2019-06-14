@@ -58,7 +58,7 @@ void perform_load(Compiler *compiler, String filename, Ast_Scope *target_scope) 
     String source;
     bool success = read_entire_file(filename, &source);
     if (!success) {
-        printf("Could not open file: %.*s\n", (int)filename.length, filename.data);
+        compiler->report_error((Token *)nullptr, "Could not open file: %.*s\n", (int)filename.length, filename.data);
         return;
     }
     
@@ -106,7 +106,7 @@ func __strings_match(a: string, b: string) -> bool {
     for 0..a.length-1 {
         if (a[it] != b[it]) return false;
     }
-
+    
     return true;
 }
 
@@ -116,21 +116,21 @@ extern "C" {
     Compiler *create_compiler_instance() {
         auto compiler = new Compiler();
         compiler->init();
-
+        
         compiler->executable_name = to_string("output");
-
+        
         compiler->copier = new Copier(compiler);
-
+        
         compiler->sema = new Sema(compiler);
-
+        
         compiler->llvm_gen = new LLVM_Generator(compiler);
         compiler->llvm_gen->init();
-
+        
         perform_load_from_string(compiler, to_string((char *)preload_text), compiler->global_scope);
-
+        
         return compiler;
     }
-
+    
     bool compiler_run_default_link_command(Compiler *compiler) {
         if (compiler->executable_name == to_string("")) return false;
 #if WIN32
@@ -210,32 +210,32 @@ extern "C" {
         printf("Linker line: %s\n", cmd_line);
         system((char *)cmd_line);
 #endif
-
+        
         // @TODO make sure we successfully launch the link command and that it returns a success code
         return true;
     }
-
+    
     bool compiler_load_file(Compiler *compiler, String filename) {
         perform_load(compiler, filename, compiler->global_scope);
-
+        
         return compiler->errors_reported == 0;
     }
-
+    
     bool compiler_typecheck_program(Compiler *compiler) {
         compiler->sema->typecheck_scope(compiler->global_scope);
         return compiler->errors_reported == 0;
     }
-
+    
     bool compiler_generate_llvm_module(Compiler *compiler) {
         // @Incomplete global variables
-    
+        
         for (auto &function : compiler->function_emission_queue) {
             compiler->llvm_gen->emit_function(function);
         }
-
+        
         return compiler->errors_reported == 0;
     }
-
+    
     bool compiler_emit_object_file(Compiler *compiler) {
         compiler->llvm_gen->finalize();
         return compiler->errors_reported == 0;
@@ -244,7 +244,7 @@ extern "C" {
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        printf("ERROR: no input files\n");
+        printf("ERROR: no input files %d\n", argc);
         return -1;
     }
     
@@ -261,14 +261,14 @@ int main(int argc, char **argv) {
     
     auto compiler = create_compiler_instance();
     compiler->is_metaprogram = is_metaprogram;
-
+    
     if (filename == to_string("")) {
         compiler->report_error((Token *)nullptr, "No input files specified.\n");
         return -1;
     }
-
+    
     if (!compiler_load_file(compiler, filename)) return -1;
-
+    
     if (!compiler_typecheck_program(compiler)) return -1;
     
     if (!compiler_generate_llvm_module(compiler)) return -1;
@@ -280,8 +280,8 @@ int main(int argc, char **argv) {
     }
     
     if (!compiler_emit_object_file(compiler)) return -1;;
-
+    
     if (!compiler_run_default_link_command(compiler)) return -1;
-
+    
     return 0;
 }

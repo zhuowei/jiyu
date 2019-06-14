@@ -162,7 +162,7 @@ void Compiler::init() {
     type_string_data = make_pointer_type(type_uint8);
     // @FixMe
     type_string_length = type_int64; // @TargetInfo
-
+    
     type_string = new Ast_Type_Info();
     type_string->type = Ast_Type_Info::STRING;
     type_string->size = type_string_length->size + type_string_data->size;
@@ -204,11 +204,11 @@ Atom *Compiler::make_atom(String name) {
 
 void Compiler::report_error_valist(String filename, String source, Span error_location, char *fmt, va_list args) {
     
-    string_length_type l0;
-    string_length_type c0;
+    string_length_type l0 = -1;
+    string_length_type c0 = -1;
     
-    string_length_type l1;
-    string_length_type c1;
+    string_length_type l1 = -1;
+    string_length_type c1 = -1;
     
     error_location.map_to_text_coordinates(source, &l0, &c0, &l1, &c1);
     
@@ -222,7 +222,7 @@ void Compiler::report_error_valist(String filename, String source, Span error_lo
     error_location.get_surrounding_lines(source, 1, &start_char, &end_char, &num_lines);
     
     assert(start_char >= 0 && end_char >= 0);
-    assert(num_lines >= 0);
+    // assert(num_lines >= 0);
     
     // printf("start char: %d\n", start_char);
     // printf("end   char: %d\n", end_char);
