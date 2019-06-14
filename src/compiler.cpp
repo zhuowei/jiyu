@@ -142,6 +142,9 @@ void Compiler::init() {
     
     type_bool = new Ast_Type_Info();
     type_bool->type = Ast_Type_Info::BOOL;
+    type_bool->size   = 1;
+    type_bool->stride = 1;
+    type_bool->alignment = 1;
     
     type_int8  = make_int_type(true, 1);
     type_int16 = make_int_type(true, 2);
@@ -163,6 +166,8 @@ void Compiler::init() {
     type_string = new Ast_Type_Info();
     type_string->type = Ast_Type_Info::STRING;
     type_string->size = type_string_length->size + type_string_data->size;
+    type_string->stride = type_string->size;
+    type_string->alignment = type_string_length->alignment;
     
     type_array_count   = type_int64; // @TargetInfo
     

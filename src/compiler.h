@@ -51,8 +51,11 @@ struct Atom_Table {
     }
 };
 
+// @Volatile must match Compiler.htn stuff
 struct Compiler {
+    bool is_metaprogram = false;
     s64 errors_reported = 0;
+    String executable_name;
 
     Sema *sema;
     Copier *copier;

@@ -1,0 +1,14 @@
+
+#load "Compiler.htn";
+
+func main() {
+    var compiler = create_compiler_instance();
+
+    compiler.executable_name = "glfw_game";
+
+    if compiler_load_file(compiler, "tests/glfw_test.htn") != true return;
+    if compiler_typecheck_program(compiler) != true return;
+    if compiler_generate_llvm_module(compiler) != true return;
+    if compiler_emit_object_file(compiler) != true return;
+    if compiler_run_default_link_command(compiler) != true return;
+}

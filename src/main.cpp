@@ -112,6 +112,136 @@ func __strings_match(a: string, b: string) -> bool {
 
 )C01N";
 
+extern "C" {
+    Compiler *create_compiler_instance() {
+        auto compiler = new Compiler();
+        compiler->init();
+
+        compiler->executable_name = to_string("output");
+
+        compiler->copier = new Copier(compiler);
+
+        compiler->sema = new Sema(compiler);
+
+        compiler->llvm_gen = new LLVM_Generator(compiler);
+        compiler->llvm_gen->init();
+
+        perform_load_from_string(compiler, to_string((char *)preload_text), compiler->global_scope);
+
+        return compiler;
+    }
+
+    bool compiler_run_default_link_command(Compiler *compiler) {
+        if (compiler->executable_name == to_string("")) return false;
+#if WIN32
+        auto win32_sdk = find_visual_studio_and_windows_sdk();
+        
+        if (win32_sdk.vs_exe_path) {
+            const int LINE_SIZE = 4096;
+            char exe_path[LINE_SIZE]; // @Cleanup hardcoded value
+            char libpath[LINE_SIZE];
+            
+            Array<String> args;
+            
+            snprintf(exe_path, LINE_SIZE, "%S\\link.exe", win32_sdk.vs_exe_path);
+            args.add(to_string(exe_path));
+            
+            if (win32_sdk.vs_library_path) {
+                
+                snprintf(libpath, LINE_SIZE, "/libpath:%S", win32_sdk.vs_library_path);
+                args.add(copy_string(to_string(libpath)));
+            }
+            
+            if (win32_sdk.windows_sdk_um_library_path) {
+                snprintf(libpath, LINE_SIZE, "/libpath:%S", win32_sdk.windows_sdk_um_library_path);
+                args.add(copy_string(to_string(libpath)));
+            }
+            
+            if (win32_sdk.windows_sdk_ucrt_library_path) {
+                snprintf(libpath, LINE_SIZE, "/libpath:%S", win32_sdk.windows_sdk_ucrt_library_path);
+                args.add(copy_string(to_string(libpath)));
+            }
+            
+            args.add(to_string("output.o"));
+            args.add(to_string("msvcrt.lib"));
+            args.add(to_string("kernel32.lib"));
+            args.add(to_string("glfw3.lib"));
+            args.add(to_string("user32.lib"));
+            args.add(to_string("opengl32.lib"));
+            args.add(to_string("shell32.lib"));
+            args.add(to_string("gdi32.lib"));
+            args.add(to_string("legacy_stdio_definitions.lib"));
+            args.add(to_string("/Fe:"));
+            args.add(compiler->executable_name);
+            
+            
+            auto cmd_line = get_command_line(&args);
+            printf("Linker line: %s\n", cmd_line);
+            
+            // system((char *)cmd_line);
+            STARTUPINFOA startup;
+            memset(&startup, 0, sizeof(STARTUPINFOA));
+            startup.cb = sizeof(STARTUPINFOA);
+            startup.dwFlags    = STARTF_USESTDHANDLES;
+            startup.hStdInput  = GetStdHandle(STD_INPUT_HANDLE);
+            startup.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+            startup.hStdError  = GetStdHandle(STD_ERROR_HANDLE);
+            
+            PROCESS_INFORMATION process_info;
+            CreateProcessA(nullptr, (char *) cmd_line, nullptr, nullptr, TRUE, 0, nullptr, nullptr, &startup, &process_info);
+            WaitForSingleObject(process_info.hProcess, INFINITE);
+        }
+#else
+        // @Incomplete should use the execpve family
+        Array<String> args;
+        args.add(to_string("ld"));
+        args.add(to_string("output.o"));
+        
+        args.add(to_string("-o"));
+        args.add(compiler->executable_name);
+        
+        args.add(to_string("-framework"));
+        args.add(to_string("OpenGL"));
+        
+        args.add(to_string("-lglfw"));
+        args.add(to_string("-lc"));
+        
+        auto cmd_line = get_command_line(&args);
+        printf("Linker line: %s\n", cmd_line);
+        system((char *)cmd_line);
+#endif
+
+        // @TODO make sure we successfully launch the link command and that it returns a success code
+        return true;
+    }
+
+    bool compiler_load_file(Compiler *compiler, String filename) {
+        perform_load(compiler, filename, compiler->global_scope);
+
+        return compiler->errors_reported == 0;
+    }
+
+    bool compiler_typecheck_program(Compiler *compiler) {
+        compiler->sema->typecheck_scope(compiler->global_scope);
+        return compiler->errors_reported == 0;
+    }
+
+    bool compiler_generate_llvm_module(Compiler *compiler) {
+        // @Incomplete global variables
+    
+        for (auto &function : compiler->function_emission_queue) {
+            compiler->llvm_gen->emit_function(function);
+        }
+
+        return compiler->errors_reported == 0;
+    }
+
+    bool compiler_emit_object_file(Compiler *compiler) {
+        compiler->llvm_gen->finalize();
+        return compiler->errors_reported == 0;
+    }
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         printf("ERROR: no input files\n");
@@ -129,123 +259,29 @@ int main(int argc, char **argv) {
         }
     }
     
-    Compiler compiler;
-    compiler.init();
-    
+    auto compiler = create_compiler_instance();
+    compiler->is_metaprogram = is_metaprogram;
+
     if (filename == to_string("")) {
-        compiler.report_error((Token *)nullptr, "No input files specified.\n");
+        compiler->report_error((Token *)nullptr, "No input files specified.\n");
         return -1;
     }
-    
-    perform_load_from_string(&compiler, to_string((char *)preload_text), compiler.global_scope);
-    perform_load(&compiler, filename, compiler.global_scope);
-    
-    if (compiler.errors_reported) return -1;
-    
-    compiler.copier = new Copier(&compiler);
 
-    compiler.sema = new Sema(&compiler);
-    compiler.sema->typecheck_scope(compiler.global_scope);
+    if (!compiler_load_file(compiler, filename)) return -1;
+
+    if (!compiler_typecheck_program(compiler)) return -1;
     
-    if (compiler.errors_reported) return -1;
+    if (!compiler_generate_llvm_module(compiler)) return -1;
     
-    compiler.llvm_gen = new LLVM_Generator(&compiler);
-    compiler.llvm_gen->init();
-    
-    // @Incomplete global variables
-    
-    for (auto &function : compiler.function_emission_queue) {
-        compiler.llvm_gen->emit_function(function);
-    }
-    
-    if (compiler.errors_reported) return -1;
-    
-    if (is_metaprogram) {
-        LLVM_Jitter *jitter = new LLVM_Jitter(compiler.llvm_gen);
+    if (compiler->is_metaprogram) {
+        LLVM_Jitter *jitter = new LLVM_Jitter(compiler->llvm_gen);
         jitter->init();
-        // auto *Main = (void (*)()) jitter->lookup_symbol(to_string("_H8asdfmain_"));
-        // Main();
         return 0;
     }
     
-    compiler.llvm_gen->finalize();
-    
-    if (compiler.errors_reported) return -1;
-    
-#if WIN32
-    auto win32_sdk = find_visual_studio_and_windows_sdk();
-    
-    if (win32_sdk.vs_exe_path) {
-        const int LINE_SIZE = 4096;
-        char exe_path[LINE_SIZE]; // @Cleanup hardcoded value
-        char libpath[LINE_SIZE];
-        
-        Array<String> args;
-        
-        snprintf(exe_path, LINE_SIZE, "%S\\link.exe", win32_sdk.vs_exe_path);
-        args.add(to_string(exe_path));
-        
-        if (win32_sdk.vs_library_path) {
-            
-            snprintf(libpath, LINE_SIZE, "/libpath:%S", win32_sdk.vs_library_path);
-            args.add(copy_string(to_string(libpath)));
-        }
-        
-        if (win32_sdk.windows_sdk_um_library_path) {
-            snprintf(libpath, LINE_SIZE, "/libpath:%S", win32_sdk.windows_sdk_um_library_path);
-            args.add(copy_string(to_string(libpath)));
-        }
-        
-        if (win32_sdk.windows_sdk_ucrt_library_path) {
-            snprintf(libpath, LINE_SIZE, "/libpath:%S", win32_sdk.windows_sdk_ucrt_library_path);
-            args.add(copy_string(to_string(libpath)));
-        }
-        
-        args.add(to_string("output.o"));
-        args.add(to_string("msvcrt.lib"));
-        args.add(to_string("kernel32.lib"));
-        args.add(to_string("glfw3.lib"));
-        args.add(to_string("user32.lib"));
-        args.add(to_string("opengl32.lib"));
-        args.add(to_string("shell32.lib"));
-        args.add(to_string("gdi32.lib"));
-        args.add(to_string("legacy_stdio_definitions.lib"));
-        
-        
-        auto cmd_line = get_command_line(&args);
-        printf("Linker line: %s\n", cmd_line);
-        
-        // system((char *)cmd_line);
-        STARTUPINFOA startup;
-        memset(&startup, 0, sizeof(STARTUPINFOA));
-        startup.cb = sizeof(STARTUPINFOA);
-        startup.dwFlags    = STARTF_USESTDHANDLES;
-        startup.hStdInput  = GetStdHandle(STD_INPUT_HANDLE);
-        startup.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-        startup.hStdError  = GetStdHandle(STD_ERROR_HANDLE);
-        
-        PROCESS_INFORMATION process_info;
-        CreateProcessA(nullptr, (char *) cmd_line, nullptr, nullptr, TRUE, 0, nullptr, nullptr, &startup, &process_info);
-        WaitForSingleObject(process_info.hProcess, INFINITE);
-    }
-#else
-    // @Incomplete should use the execpve family
-    Array<String> args;
-    args.add(to_string("ld"));
-    args.add(to_string("output.o"));
-    
-    args.add(to_string("-o"));
-    args.add(to_string("output"));
-    
-    args.add(to_string("-framework"));
-    args.add(to_string("OpenGL"));
-    
-    args.add(to_string("-lglfw"));
-    args.add(to_string("-lc"));
-    
-    auto cmd_line = get_command_line(&args);
-    printf("Linker line: %s\n", cmd_line);
-    system((char *)cmd_line);
-#endif
+    if (!compiler_emit_object_file(compiler)) return -1;;
+
+    if (!compiler_run_default_link_command(compiler)) return -1;
+
     return 0;
 }
