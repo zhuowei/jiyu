@@ -74,7 +74,7 @@ void LLVM_Generator::init() {
     thread_safe_context = new ThreadSafeContext(std::move(ctx));
     llvm_context = thread_safe_context->getContext();
     
-    llvm_module = new Module("Htn Module", *llvm_context);
+    llvm_module = new Module("jiyu Module", *llvm_context);
     irb = new IRBuilder<>(*llvm_context);
     
     type_void = Type::getVoidTy(*llvm_context);

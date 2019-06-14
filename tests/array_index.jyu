@@ -1,5 +1,5 @@
 
-#load "LibC.htn";
+#load "LibC.jyu";
 
 func main() {
     var arr: [10] uint8;

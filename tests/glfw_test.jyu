@@ -1,10 +1,10 @@
 
-#load "Array.htn";
-#load "GLFW.htn";
-#load "OpenGL.htn";
-#load "LibC.htn";
+#load "Array.jyu";
+#load "GLFW.jyu";
+#load "OpenGL.jyu";
+#load "LibC.jyu";
 
-// htn stuff
+// jiyu stuff
 
 func to_c_string(input: string) -> c_string {
 	var data: c_string = cast(c_string) malloc(cast(size_t) input.length + 1);

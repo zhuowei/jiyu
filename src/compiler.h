@@ -51,7 +51,7 @@ struct Atom_Table {
     }
 };
 
-// @Volatile must match Compiler.htn stuff
+// @Volatile must match Compiler.jyu stuff
 struct Compiler {
     bool is_metaprogram = false;
     s64 errors_reported = 0;
