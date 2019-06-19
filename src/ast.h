@@ -81,6 +81,7 @@ struct Ast_Type_Info {
     // @Cleanup hmm... is this really necessary? Should we just have all type code just check struct_decl? or is that overstepping what the type information is for..?
     struct Struct_Member {
         Atom *name               = nullptr;
+        s64 element_index        = -1;
         Ast_Type_Info *type_info = nullptr;
         bool is_let = false;
     };
@@ -242,6 +243,7 @@ struct Ast_Declaration : Ast_Expression {
     
     bool is_let = false;
     bool is_readonly_variable = false;
+    bool is_struct_member = false;
 };
 
 struct Ast_Function : Ast_Expression {

@@ -281,6 +281,36 @@ Value *LLVM_Generator::dereference(Value *value, s64 element_path_index, bool is
     }
 }
 
+void LLVM_Generator::default_init_struct(Value *decl_value, Ast_Type_Info *info) {
+    assert(info->type == Ast_Type_Info::STRUCT);
+    assert(info->struct_decl);
+
+    auto _struct = info->struct_decl;
+
+    auto null_value = Constant::getNullValue(get_type(info));
+    assert(null_value->getType() == decl_value->getType()->getPointerElementType());
+    irb->CreateStore(null_value, decl_value);
+
+    s32 element_path_index = 0;
+    for (auto member: _struct->member_scope.declarations) {
+        if (member->type == AST_DECLARATION) {
+            auto decl = static_cast<Ast_Declaration *>(member);
+
+            if (decl->is_let) continue;
+            assert(decl->is_struct_member);
+
+            if (decl->initializer_expression) {
+                auto expr = emit_expression(decl->initializer_expression);
+
+                auto gep = dereference(decl_value, element_path_index, true);
+                irb->CreateStore(expr, gep);
+            }
+
+            element_path_index++;
+        }
+    }
+}
+
 Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalue) {
     while(expression->substitution) expression = expression->substitution;
     
@@ -508,8 +538,13 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 irb->CreateStore(value, decl_value);
             } else {
                 // if a declaration does not have an initializer, initialize to 0
-                auto type = decl_value->getType()->getPointerElementType();
-                irb->CreateStore(Constant::getNullValue(type), decl_value);
+                auto type_info = get_type_info(decl);
+                if (type_info->type == Ast_Type_Info::STRUCT) {
+                    default_init_struct(decl_value, type_info);
+                } else {
+                    auto type = decl_value->getType()->getPointerElementType();
+                    irb->CreateStore(Constant::getNullValue(type), decl_value);
+                }
             }
             return nullptr;
         }
@@ -534,7 +569,8 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                     
                     auto type = value->getType();
                     if (type->isIntegerTy() && type->getPrimitiveSizeInBits() < type_i32->getPrimitiveSizeInBits()) {
-                        assert(get_type_info(arg)->type == Ast_Type_Info::INTEGER);
+                        assert(get_type_info(arg)->type == Ast_Type_Info::INTEGER ||
+                                get_type_info(arg)->type == Ast_Type_Info::BOOL);
                         if (get_type_info(arg)->is_signed) {
                             args[i] = irb->CreateSExt(value, type_i32);
                         } else {

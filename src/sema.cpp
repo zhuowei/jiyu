@@ -600,10 +600,16 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             
             if (decl->is_let && !decl->is_readonly_variable && decl->initializer_expression) {
                 if (!resolves_to_literal_value(decl->initializer_expression)) {
-                    compiler->report_error(decl->initializer_expression, "let constant can only be initialized by a literal expression.\n");
+                    compiler->report_error(decl->initializer_expression, "let constant may only be initialized by a literal expression.\n");
                 }
                 
                 // decl->substitution = decl->initializer_expression;
+            }
+
+            if (!decl->is_let && decl->is_struct_member && decl->initializer_expression) {
+                if (!resolves_to_literal_value(decl->initializer_expression)) {
+                    compiler->report_error(decl->initializer_expression, "Struct member may only be initialized by a literal expression.\n");
+                }
             }
             
             if (decl->type_inst) {
@@ -997,7 +1003,8 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     }
                 }
             } else if (left_type->type == Ast_Type_Info::STRUCT) {
-                s64 element_index = 0;
+                // @Incomplete this should perform a scope lookup for a declaration so we can handle
+                // lets, functions, typealiases, etc..
                 bool found = false;
                 for (auto member : left_type->struct_members) {
                     if (member.is_let) continue;
@@ -1005,13 +1012,11 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     if (member.name == field_atom) {
                         found = true;
                         
-                        deref->element_path_index = element_index;
+                        deref->element_path_index = member.element_index;
                         deref->type_info = member.type_info;
                         deref->byte_offset = -1; // @Incomplete
                         break;
                     }
-                    
-                    element_index += 1;
                 }
                 
                 if (!found) {
@@ -1277,6 +1282,15 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         
         case AST_STRUCT: {
             auto _struct = static_cast<Ast_Struct *>(expression);
+            
+            // flag stuct member declarations
+            for (auto _decl : _struct->member_scope.declarations) {
+                if (_decl->type == AST_DECLARATION) {
+                    auto decl = static_cast<Ast_Declaration *>(_decl);
+                    decl->is_struct_member = true;
+                }
+            }
+
             typecheck_scope(&_struct->member_scope);
             if (compiler->errors_reported) return;
 

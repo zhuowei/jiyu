@@ -166,7 +166,7 @@ struct Span {
         map_to_text_coordinates(text, &line_start, &char_start, &line_end, &char_end);
         
         string_length_type start_line = (line_start - num_surrounding_lines);
-        if (start_line < 0) start_line = 0;
+        if (start_line < 1) start_line = 1;
         
         string_length_type end_line = (line_start + num_surrounding_lines) + 1; // Add one so we rollover to the start of the next line so that we capture all the text from the end line.
         
@@ -191,7 +191,7 @@ struct Span {
         *new_start = start_index;
         
         if (end_index < 0) {
-            end_line = line_count;
+            end_line  = line_count + 1;
             end_index = text.length;
         }
         *new_end   = end_index;

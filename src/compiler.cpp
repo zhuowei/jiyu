@@ -81,6 +81,7 @@ Ast_Type_Info *make_struct_type(Ast_Struct *_struct) {
     
     s64 size_cursor = 0;
     s64 biggest_alignment = 1;
+    s64 element_path_index = 0;
     
     for (auto expr : _struct->member_scope.declarations) {
         assert(expr->type == AST_DECLARATION);
@@ -93,6 +94,11 @@ Ast_Type_Info *make_struct_type(Ast_Struct *_struct) {
         member.name = decl->identifier->name;
         member.type_info = decl->type_info;
         member.is_let = decl->is_let;
+
+        if (!member.is_let) {
+            member.element_index = element_path_index;
+            element_path_index++;
+        }
         
         info->struct_members.add(member);
         
