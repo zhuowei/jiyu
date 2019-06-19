@@ -590,6 +590,11 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         
         case AST_DECLARATION: {
             auto decl = static_cast<Ast_Declaration *>(expression);
+
+            if (decl->type_inst) {
+                decl->type_info = resolve_type_inst(decl->type_inst);
+                if (compiler->errors_reported) return;
+            }
             
             // @TODO prevent use of a declaration in it's initializer
             if (decl->initializer_expression) typecheck_expression(decl->initializer_expression, get_type_info(decl));
@@ -613,7 +618,9 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             }
             
             if (decl->type_inst) {
-                decl->type_info = resolve_type_inst(decl->type_inst); 
+                // this should have already be resolved above
+                assert(decl->type_info);
+                // decl->type_info = resolve_type_inst(decl->type_inst);
             } else {
                 assert(decl->initializer_expression);
                 

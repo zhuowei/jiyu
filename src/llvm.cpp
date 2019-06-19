@@ -304,6 +304,12 @@ void LLVM_Generator::default_init_struct(Value *decl_value, Ast_Type_Info *info)
 
                 auto gep = dereference(decl_value, element_path_index, true);
                 irb->CreateStore(expr, gep);
+            } else {
+                auto mem_info = get_type_info(decl);
+                if (mem_info->type == Ast_Type_Info::STRUCT) {
+                    auto gep = dereference(decl_value, element_path_index, true);
+                    default_init_struct(gep, mem_info);
+                }
             }
 
             element_path_index++;
