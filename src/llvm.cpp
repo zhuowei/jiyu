@@ -988,6 +988,11 @@ void LLVM_Jitter::init() {
     
     ExecutionSession ES;
     RTDyldObjectLinkingLayer ObjectLayer(ES, []() { return llvm::make_unique<SectionMemoryManager>(); });
+
+#ifdef WIN32
+    ObjectLayer.setOverrideObjectFlagsWithResponsibilityFlags(true);
+#endif
+
     IRCompileLayer CompileLayer(ES, ObjectLayer, ConcurrentIRCompiler(*JTMB));
     
     MangleAndInterner Mangle(ES, *DL);

@@ -10,6 +10,10 @@
 
 #ifdef WIN32
 #include "microsoft_craziness.h"
+
+#define EXPORT __declspec(dllexport)
+#else
+#define EXPORT 
 #endif
 
 #include <stdio.h>
@@ -113,7 +117,7 @@ func __strings_match(a: string, b: string) -> bool {
 )C01N";
 
 extern "C" {
-    Compiler *create_compiler_instance() {
+    EXPORT Compiler *create_compiler_instance() {
         auto compiler = new Compiler();
         compiler->init();
         
@@ -131,7 +135,7 @@ extern "C" {
         return compiler;
     }
     
-    bool compiler_run_default_link_command(Compiler *compiler) {
+    EXPORT bool compiler_run_default_link_command(Compiler *compiler) {
         if (compiler->executable_name == to_string("")) return false;
 #if WIN32
         auto win32_sdk = find_visual_studio_and_windows_sdk();
@@ -215,18 +219,18 @@ extern "C" {
         return true;
     }
     
-    bool compiler_load_file(Compiler *compiler, String filename) {
+    EXPORT bool compiler_load_file(Compiler *compiler, String filename) {
         perform_load(compiler, filename, compiler->global_scope);
         
         return compiler->errors_reported == 0;
     }
     
-    bool compiler_typecheck_program(Compiler *compiler) {
+    EXPORT bool compiler_typecheck_program(Compiler *compiler) {
         compiler->sema->typecheck_scope(compiler->global_scope);
         return compiler->errors_reported == 0;
     }
     
-    bool compiler_generate_llvm_module(Compiler *compiler) {
+    EXPORT bool compiler_generate_llvm_module(Compiler *compiler) {
         // @Incomplete global variables
         
         for (auto &function : compiler->function_emission_queue) {
@@ -236,7 +240,7 @@ extern "C" {
         return compiler->errors_reported == 0;
     }
     
-    bool compiler_emit_object_file(Compiler *compiler) {
+    EXPORT bool compiler_emit_object_file(Compiler *compiler) {
         compiler->llvm_gen->finalize();
         return compiler->errors_reported == 0;
     }
