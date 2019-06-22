@@ -18,6 +18,16 @@
 
 #include <stdio.h>
 
+void convert_to_back_slashes(char *c) {
+    while (*c) {
+        if (*c == '/') {
+            *c = '\\';
+        }
+        
+        ++c;
+    }
+}
+
 bool read_entire_file(String filepath, String *result) {
     char *cpath = to_c_string(filepath);
     
@@ -178,7 +188,9 @@ extern "C" {
             
             String output_name = compiler->executable_name;
             char executable_name[LINE_SIZE];
-            snprintf(executable_name, LINE_SIZE, "/Fe:%.*s", output_name.length, output_name.data);
+            snprintf(executable_name, LINE_SIZE, "/OUT:%.*s.exe", output_name.length, output_name.data);
+            convert_to_back_slashes(executable_name + 1);
+            
             args.add(to_string(executable_name));
             // args.add(to_string("/Fe:"));
             // args.add(compiler->executable_name);
