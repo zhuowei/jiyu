@@ -158,6 +158,11 @@ void print_type_to_builder(String_Builder *builder, Ast_Type_Info *info) {
         return;
     }
     
+    if (info->type == Ast_Type_Info::VOID) {
+        builder->print("void");
+        return;
+    }
+    
     assert(false);
 }
 
@@ -320,6 +325,52 @@ bool expression_is_lvalue(Ast_Expression *expression, bool parent_wants_lvalue) 
     return false;
 }
 
+Tuple<u64, Ast_Expression *> Sema::typecheck_and_implicit_cast_single_expression(Ast_Expression *expression, Ast_Type_Info *target_type_info, bool allow_coerce_to_ptr_void) {
+    typecheck_expression(expression, target_type_info);
+    
+    if (compiler->errors_reported) return MakeTuple<u64, Ast_Expression *>(0, nullptr);
+    
+    while (expression->substitution) expression = expression->substitution;
+    
+    auto rtype = get_type_info(expression);
+    auto ltype = target_type_info;
+    
+    auto right = expression;
+    u64  viability_score  = 0;
+    
+    if (!types_match(ltype, rtype)) {
+        if (is_int_type(ltype) && is_int_type(rtype) && (ltype->is_signed == rtype->is_signed)) {
+            if (ltype->size > rtype->size) {
+                right = cast_int_to_int(right, ltype);
+                viability_score += 1;
+            }
+        } else if (is_float_type(ltype) && is_float_type(rtype)) {
+            if (ltype->size > rtype->size) {
+                right = cast_float_to_float(right, ltype);
+                viability_score += 1;
+            }
+        } else if (is_float_type(ltype) && is_int_type(rtype)) {
+            right = cast_int_to_float(right, ltype);
+            viability_score += 10;
+        } else if (allow_coerce_to_ptr_void && is_pointer_type(ltype) && is_pointer_type(rtype)) {
+            
+            // @Note you're only allowed to coerce right-to-left here, meaning if the right-expression is *void, the left-expression cannot coerce away from whatever ptr type it is.
+            if (type_points_to_void_eventually(ltype)) {
+                auto left_indir = get_levels_of_indirection(ltype);
+                auto right_indir = get_levels_of_indirection(rtype);
+                
+                if (left_indir == right_indir) {
+                    right = cast_ptr_to_ptr(right, ltype);
+                }
+            }
+            
+            viability_score += 1;
+        }
+    }
+    
+    return MakeTuple(viability_score, right);
+}
+
 // @Cleanup if we introduce expression substitution, then we can remove the resut parameters and just set (left/right)->substitution
 // actually, if we do that, then we can't really use this for checking function calls.
 Tuple<u64, u64> Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast_Expression *right, Ast_Expression **result_left, Ast_Expression **result_right, bool allow_coerce_to_ptr_void) {
@@ -436,7 +487,7 @@ Ast_Function *Sema::get_polymorph_for_function_call(Ast_Function *template_funct
     // from here we need to make a copy of the template
     // and then attempt to resolve the types of the function arguments
     // and resolve the targets of the template type aliases
-
+    
     auto polymorph = compiler->copier->polymoprh_function_with_arguments(template_function, &call->argument_list);
     if (polymorph) {
         typecheck_function(polymorph);
@@ -446,47 +497,42 @@ Ast_Function *Sema::get_polymorph_for_function_call(Ast_Function *template_funct
     return polymorph;
 }
 
-Tuple<bool, u64> Sema::function_call_is_viable(Ast_Function_Call *call, Ast_Function *function, bool perform_full_check) {
-    if (function->is_template_function) {
-        compiler->report_error(call, "Internal error: function_call_is_viable is invalid for template functions. Only polymorphed functions should get here!\n");
-        MakeTuple<bool, u64>(false, 0);
-    }
+Tuple<bool, u64> Sema::function_call_is_viable(Ast_Function_Call *call, Ast_Type_Info *function_type, bool perform_full_check) {
+    assert(function_type);
+    assert(function_type->type == Ast_Type_Info::FUNCTION);
     
-    bool pass_c_varags = (function->is_c_varargs && call->argument_list.count >= function->arguments.count);
-    if (!pass_c_varags && call->argument_list.count != function->arguments.count) {
+    bool pass_c_varags = (function_type->is_c_varargs && call->argument_list.count >= function_type->arguments.count);
+    if (!pass_c_varags && call->argument_list.count != function_type->arguments.count) {
         // @TODO print function declaration as well as call site
         if (perform_full_check) {
-            compiler->report_error(call, "Mismatch in function call arguments. Wanted %lld, got %lld.\n", function->arguments.count, call->argument_list.count);
+            compiler->report_error(call, "Mismatch in function call arguments. Wanted %lld, got %lld.\n", function_type->arguments.count, call->argument_list.count);
         }
         return MakeTuple<bool, u64>(false, 0);
     }
-    
-    typecheck_function(function);
-    if (compiler->errors_reported) return MakeTuple<bool, u64>(false, 0);
     
     u64 viability_score = 0;
     // @Incomplete check that types match between arguments
     for (array_count_type i = 0; i < call->argument_list.count; ++i) {
         auto value = call->argument_list[i];
         
-        if (i < function->arguments.count) {
+        if (i < function_type->arguments.count) {
             // use null for morphed param because we don't care about the modified value because function parameter declarations can't be mutated here
-            auto param = function->arguments[i];
+            auto param_type = function_type->arguments[i];
             bool allow_coerce_to_ptr_void = true;
-            auto tuple = typecheck_and_implicit_cast_expression_pair(param, value, nullptr, &value, allow_coerce_to_ptr_void);
-            u64 right_viability_score = tuple.item2;
+            auto tuple = typecheck_and_implicit_cast_single_expression(value, param_type, allow_coerce_to_ptr_void);
+            u64 right_viability_score = tuple.item1;
             
             if (compiler->errors_reported) return MakeTuple<bool, u64>(false, 0);
             
+            value = tuple.item2;
             auto value_type = get_type_info(value);
-            auto param_type = get_type_info(param);
             if (!types_match(value_type, param_type)) {
                 if (perform_full_check) {
                     auto wanted = type_to_string(param_type);
                     auto given  = type_to_string(value_type);
                     compiler->report_error(value, "Mismatch in function call argument types. (Wanted %.*s, Given %.*s).\n",
-                                            wanted.length, wanted.data, given.length, given.data);
-
+                                           wanted.length, wanted.data, given.length, given.data);
+                    
                     free(wanted.data);
                     free(given.data);
                 }
@@ -495,7 +541,7 @@ Tuple<bool, u64> Sema::function_call_is_viable(Ast_Function_Call *call, Ast_Func
             
             // if value was mutated away from argument_list then add to the score
             viability_score += right_viability_score;
-        } else if (function->is_c_varargs) {
+        } else if (function_type->is_c_varargs) {
             // just do a normal typecheck on the call argument since this is for varargs
             typecheck_expression(value);
             viability_score += 1;
@@ -511,16 +557,21 @@ Tuple<bool, u64> Sema::function_call_is_viable(Ast_Function_Call *call, Ast_Func
 }
 
 void Sema::collect_function_overloads_for_atom(Atom *atom, Ast_Scope *start, Array<Ast_Function *> *overload_set) {
+    printf("Start\n");
     while (start) {
         
         for (auto it : start->declarations) {
             if (it->type == AST_FUNCTION) {
                 auto function = static_cast<Ast_Function *>(it);
-                if (function->identifier->name == atom) overload_set->add(function);
+                if (function->identifier->name == atom) {
+                    printf("Adding overlaod: %p\n", function);
+                    overload_set->add(function);
+                }
             }
         }
         
         start = start->parent;
+        printf("Ascending\n");
     }
 }
 
@@ -562,7 +613,7 @@ Ast_Expression *Sema::find_declaration_for_atom(Atom *atom, Ast_Scope *start) {
 }
 
 
-void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_numeric_type) {
+void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_numeric_type, bool overload_set_allowed) {
     while (expression->substitution) expression = expression->substitution;
     if (expression->type_info) return;
     
@@ -586,8 +637,32 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             } else {
                 typecheck_expression(decl);
                 
-                ident->resolved_declaration = decl;
-                ident->type_info = decl->type_info;
+                if (decl->type == AST_FUNCTION) {
+                    collect_function_overloads_for_atom(ident->name, ident->enclosing_scope, &ident->overload_set);
+                    
+                    if (!overload_set_allowed && ident->overload_set.count > 1) {
+                        String name = ident->name->name;
+                        compiler->report_error(ident, "Ambiguous use of overloaded function '%.*s' (%d overloads).\n", name.length, name.data, ident->overload_set.count);
+                        
+                        for (auto overload: ident->overload_set) {
+                            compiler->report_error(overload, "DEBUG: here\n");
+                        }
+                        return;
+                    } else if (!overload_set_allowed) {
+                        assert(ident->overload_set.count == 1);
+                        
+                        ident->resolved_declaration = decl;
+                        ident->type_info = get_type_info(decl);
+                        return;
+                    }
+                    
+                    // resolved_declaration and type_info will be resolved by the Ast_Function_Call code.
+                    // Set to void for now, Ast_Function_Call code will either error or fix this up.
+                    ident->type_info = compiler->type_void;
+                } else {
+                    ident->resolved_declaration = decl;
+                    ident->type_info = decl->type_info;
+                }
             }
             
             return;
@@ -595,7 +670,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         
         case AST_DECLARATION: {
             auto decl = static_cast<Ast_Declaration *>(expression);
-
+            
             if (decl->type_inst) {
                 decl->type_info = resolve_type_inst(decl->type_inst);
                 if (compiler->errors_reported) return;
@@ -615,7 +690,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 
                 // decl->substitution = decl->initializer_expression;
             }
-
+            
             if (!decl->is_let && decl->is_struct_member && decl->initializer_expression) {
                 if (!resolves_to_literal_value(decl->initializer_expression)) {
                     compiler->report_error(decl->initializer_expression, "Struct member may only be initialized by a literal expression.\n");
@@ -639,7 +714,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     auto wanted = type_to_string(get_type_info(decl));
                     auto given  = type_to_string(get_type_info(decl->initializer_expression));
                     compiler->report_error(decl->initializer_expression, "Attempt to initialize variable with expression of incompatible type (Wanted %.*s, Given %.*s).\n",
-                                            wanted.length, wanted.data, given.length, given.data);
+                                           wanted.length, wanted.data, given.length, given.data);
                     free(wanted.data);
                     free(given.data);
                     return;
@@ -680,20 +755,20 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 || bin->operator_type == Token::OR_OP) {
                 bin->type_info = compiler->type_bool;
             }
-
+            
             auto left_type  = get_type_info(bin->left);
             auto right_type = get_type_info(bin->right);
-
+            
             if (bin->operator_type == Token::AND_OP ||
                 bin->operator_type == Token::OR_OP) {
                 if (left_type->type != Ast_Type_Info::BOOL) {
                     compiler->report_error(bin->left, "Left-hand side of boolean operator must be of type bool.\n");
                 }
-
+                
                 if (right_type->type != Ast_Type_Info::BOOL) {
                     compiler->report_error(bin->right, "Right-hand side of boolean operator must be of type bool.\n");
                 }
-
+                
                 if (compiler->errors_reported) return;
             }
             
@@ -709,17 +784,19 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 compiler->report_error(bin, "Incompatible types found on lhs and rhs of binary operator.");
                 return;
             }
-
+            
             if (bin->operator_type == Token::EQ_OP) {
                 if (left_type->type == Ast_Type_Info::STRING) {
                     Ast_Function_Call *call = new Ast_Function_Call();
                     call->text_span = bin->text_span;
-
-                    call->identifier = make_identifier(compiler->atom___strings_match);
-                    call->identifier->enclosing_scope = compiler->global_scope;
+                    
+                    auto identifier = make_identifier(compiler->atom___strings_match);
+                    identifier->enclosing_scope = compiler->global_scope;
+                    
+                    call->function_or_function_ptr = identifier;
                     call->argument_list.add(bin->left);
                     call->argument_list.add(bin->right);
-
+                    
                     typecheck_expression(call);
                     bin->substitution = call;
                     return;
@@ -837,80 +914,93 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         case AST_FUNCTION_CALL: {
             auto call = static_cast<Ast_Function_Call *>(expression);
             
-            /*
-            typecheck_expression(call->identifier);
-            
+            auto subexpression = call->function_or_function_ptr;
+            typecheck_expression(subexpression);
             if (compiler->errors_reported) return;
             
-            assert(call->identifier->resolved_declaration);
-            auto function = static_cast<Ast_Function *>(call->identifier->resolved_declaration);
-            
-            if (function->type != AST_FUNCTION) {
-            String name = call->identifier->name->name;
-            compiler->report_error(call, "Declaration '%.*s' is not a function.\n", name.length, name.data);
-            return;
-            }
-            */
-            // @Incomplete function pointers
-            Array<Ast_Function *> overload_set;
-            collect_function_overloads_for_atom(call->identifier->name, call->identifier->enclosing_scope, &overload_set);
-            
-            if (overload_set.count == 0) {
-                compiler->report_error(call, "Function call identifier does not name a function.");
-                return;
-            }
-            
-            Ast_Function *function = nullptr;
-            if (overload_set.count == 1) {
-                function = overload_set[0];
-                if (function->is_template_function) {
-                    function = get_polymorph_for_function_call(function, call);
-                    if (compiler->errors_reported) return;
-                }
-            } else {
+            if (subexpression->type == AST_IDENTIFIER) {
+                auto identifier = static_cast<Ast_Identifier *>(subexpression);
                 
-                const u64 U64_MAX = 0xFFFFFFFFFFFFFFFF;
-                u64 lowest_score = U64_MAX;
-                for (auto overload : overload_set) {
-                    if (overload->is_template_function) {
-                        overload = get_polymorph_for_function_call(overload, call);
+                if (!identifier->resolved_declaration) {
+                    auto overload_set = identifier->overload_set;
+                    
+                    if (overload_set.count == 0) {
+                        compiler->report_error(call, "Function call identifier does not name a function.");
+                        return;
+                    }
+                    
+                    assert(identifier->type_info == compiler->type_void);
+                    
+                    Ast_Function *function = nullptr;
+                    if (overload_set.count == 1) {
+                        function = overload_set[0];
+                        typecheck_function(function);
                         if (compiler->errors_reported) return;
                         
-                        if (!overload) continue; // no polymorphs that match this call, so skip it
-                    }
-                    
-                    auto tuple = function_call_is_viable(call, overload, false);
-                    if (compiler->errors_reported) return;
-                    
-                    bool viable = tuple.item1;
-                    u64  score  = tuple.item2;
-                    
-                    if (viable) {
-                        if (score < lowest_score) {
-                            lowest_score = score;
-                            function = overload;
+                        if (function->is_template_function) {
+                            function = get_polymorph_for_function_call(function, call);
+                            if (compiler->errors_reported) return;
+                        }
+                    } else {
+                        const u64 U64_MAX = 0xFFFFFFFFFFFFFFFF;
+                        u64 lowest_score = U64_MAX;
+                        for (auto overload : overload_set) {
+                            if (overload->is_template_function) {
+                                overload = get_polymorph_for_function_call(overload, call);
+                                if (compiler->errors_reported) return;
+                                
+                                if (!overload) continue; // no polymorphs that match this call, so skip it
+                            }
+                            
+                            typecheck_function(overload);
+                            if (compiler->errors_reported) return;
+                            
+                            auto tuple = function_call_is_viable(call, get_type_info(overload), false);
+                            if (compiler->errors_reported) return;
+                            
+                            bool viable = tuple.item1;
+                            u64  score  = tuple.item2;
+                            
+                            if (viable) {
+                                if (score < lowest_score) {
+                                    lowest_score = score;
+                                    function = overload;
+                                }
+                            }
                         }
                     }
+                    
+                    if (!function) {
+                        // @Incomplete print visible overload candidates
+                        compiler->report_error(call, "No viable overload for function call.\n");
+                        return;
+                    }
+                    
+                    function_call_is_viable(call, get_type_info(function), true);
+                    if (compiler->errors_reported) return;
+                    
+                    if (function->return_decl) {
+                        call->type_info = function->return_decl->type_info;
+                    } else {
+                        call->type_info = compiler->type_void;
+                    }
+                    
+                    identifier->resolved_declaration = function;
+                    identifier->type_info = function->type_info;
+                    return;
                 }
             }
             
-            if (!function) {
-                // @Incomplete print visible overload candidates
-                compiler->report_error(call, "No viable overload for function call.\n");
-                return;
-            }
+            // fall through case for expressions that generate function pointers
+            auto info = get_type_info(subexpression);
+            auto tuple = function_call_is_viable(call, info, true);
             
-            function_call_is_viable(call, function, true);
-            if (compiler->errors_reported) return;
-            
-            if (function->return_decl) {
-                call->type_info = function->return_decl->type_info;
+            bool viable = tuple.item1;
+            if (viable) {
+                call->type_info = info->return_type;
             } else {
-                call->type_info = compiler->type_void;
+                assert(compiler->errors_reported);
             }
-            
-            call->identifier->resolved_declaration = function;
-            
             return;
         }
         
@@ -1241,7 +1331,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     auto wanted = type_to_string(return_type);
                     auto given  = type_to_string(value_type);
                     compiler->report_error(ret->expression, "Type of return expression does not match function return type. (Wanted %.*s, Given %.*s).\n",
-                                            wanted.length, wanted.data, given.length, given.data);
+                                           wanted.length, wanted.data, given.length, given.data);
                     free(wanted.data);
                     free(given.data);
                     return;
@@ -1302,10 +1392,10 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     decl->is_struct_member = true;
                 }
             }
-
+            
             typecheck_scope(&_struct->member_scope);
             if (compiler->errors_reported) return;
-
+            
             _struct->type_value = make_struct_type(_struct);
             _struct->type_info = compiler->type_info_type;
             return;
@@ -1492,7 +1582,7 @@ void Sema::typecheck_function(Ast_Function *function) {
         function->type_info = compiler->type_void;
         return;
     }
-
+    
     if (function->polymorphic_type_alias_scope) {
         for (auto a: function->polymorphic_type_alias_scope->declarations) {
             typecheck_expression(a);
@@ -1534,8 +1624,7 @@ void Sema::typecheck_function(Ast_Function *function) {
         return;
     }
     
-    // @Incomplete I'm setting this as void for now just so we dont end up typechecking the same function multiple times, but this should be of 'function' type.
-    function->type_info = compiler->type_void;
+    function->type_info = make_function_type(compiler, function);
     
     if (function->scope) {
         typecheck_scope(function->scope);

@@ -94,7 +94,7 @@ Ast_Type_Info *make_struct_type(Ast_Struct *_struct) {
         member.name = decl->identifier->name;
         member.type_info = decl->type_info;
         member.is_let = decl->is_let;
-
+        
         if (!member.is_let) {
             member.element_index = element_path_index;
             element_path_index++;
@@ -114,6 +114,34 @@ Ast_Type_Info *make_struct_type(Ast_Struct *_struct) {
     info->struct_decl = _struct;
     info->size = size_cursor;
     info->stride = pad_to_alignment(info->size, info->alignment);
+    return info;
+}
+
+Ast_Type_Info *make_function_type(Compiler *compiler, Ast_Function *function) {
+    Ast_Type_Info *info = new Ast_Type_Info();
+    info->type   = Ast_Type_Info::FUNCTION;
+    info->size   = compiler->type_ptr_void->size;
+    info->stride = compiler->type_ptr_void->stride;
+    
+    info->is_c_function = function->is_c_function;
+    info->is_c_varargs  = function->is_c_varargs;
+    
+    for (auto arg: function->arguments) {
+        assert(get_type_info(arg));
+        
+        auto arg_info = get_type_info(arg);
+        
+        info->arguments.add(arg_info);
+    }
+    
+    if (function->return_decl) {
+        assert(function->return_decl);
+        info->return_type = get_type_info(function->return_decl);
+        assert(info->return_type);
+    } else {
+        info->return_type = compiler->type_void;
+    }
+    
     return info;
 }
 
@@ -194,7 +222,7 @@ void Compiler::init() {
 
 void Compiler::queue_directive(Ast_Expression *directive) {
     assert(directive->type == AST_DIRECTIVE_LOAD || directive->type == AST_DIRECTIVE_STATIC_IF);
-
+    
     directive_queue.add(directive);
 }
 
@@ -202,18 +230,18 @@ void Compiler::resolve_directives() {
     // Spin on the queue length since directives can cause more directives to be added in
     while (directive_queue.count) {
         auto directive = directive_queue[0];
-
+        
         if (directive->type == AST_DIRECTIVE_LOAD) {
             auto load = static_cast<Ast_Directive_Load *>(directive);
-
+            
             auto name = load->target_filename;
             printf("DEBUG: load '%.*s'\n", name.length, name.data);
-
+            
             void perform_load(Compiler *compiler, String filename, Ast_Scope *target_scope);
             perform_load(this, load->target_filename, load->target_scope);
-
+            
             if (this->errors_reported) return;
-
+            
             directive_queue.unordered_remove(0);
         } else {
             assert(false);

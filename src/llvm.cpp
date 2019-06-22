@@ -120,7 +120,7 @@ void LLVM_Generator::finalize() {
     legacy::PassManager pass;
     auto FileType = TargetMachine::CGFT_ObjectFile;
     
-    // llvm_module->dump();
+    llvm_module->dump();
     
     pass.add(createVerifierPass(false));
     if (TargetMachine->addPassesToEmitFile(pass, dest, nullptr, FileType)) {
@@ -205,43 +205,50 @@ Type *LLVM_Generator::get_type(Ast_Type_Info *type) {
         return StructType::get(*llvm_context, ArrayRef<Type *>(member_types.data, member_types.count), false);
     }
     
+    if (type->type == Ast_Type_Info::FUNCTION) {
+        Array<Type *> arguments;
+        
+        bool is_c_function = type->is_c_function;
+        bool is_win32 = TargetMachine->getTargetTriple().isOSWindows();
+        
+        for (auto arg_type : type->arguments) {
+            if (arg_type == compiler->type_void) continue;
+            
+            Type *type = get_type(arg_type);
+            
+            if (is_c_function && is_win32 && is_aggregate_type(arg_type)) {
+                assert(arg_type->size >= 0);
+                
+                // @TargetInfo this is only true for x64 too
+                const int _8BYTES = 8;
+                if (arg_type->size > _8BYTES) {
+                    arguments.add(type->getPointerTo());
+                    continue;
+                }
+            }
+            
+            arguments.add(type);
+        }
+        
+        Type *return_type = get_type(type->return_type);
+        if (type->return_type->type == Ast_Type_Info::VOID) {
+            return_type = type_void;
+        }
+        
+        return FunctionType::get(return_type, ArrayRef<Type *>(arguments.data, arguments.count), type->is_c_varargs)->getPointerTo();
+    }
+    
     assert(false);
     return nullptr;
 }
 
 FunctionType *LLVM_Generator::create_function_type(Ast_Function *function) {
-    Array<Type *> arguments;
-    Type *return_type = type_void;
+    Type *type = get_type(get_type_info(function));
+    assert(type->isPointerTy());
     
-    bool is_c_function = function->is_c_function;
-    bool is_win32 = TargetMachine->getTargetTriple().isOSWindows();
-    
-    for (auto &arg : function->arguments) {
-        auto arg_type = get_type_info(arg);
-        
-        if (arg_type == compiler->type_void) continue;
-        
-        Type *type = get_type(arg_type);
-        
-        if (is_c_function && is_win32 && is_aggregate_type(arg_type)) {
-            assert(arg_type->size >= 0);
-            
-            // @TargetInfo this is only true for x64 too
-            const int _8BYTES = 8;
-            if (arg_type->size > _8BYTES) {
-                arguments.add(type->getPointerTo());
-                continue;
-            }
-        }
-        
-        arguments.add(type);
-    }
-    
-    if (function->return_decl) {
-        return_type = get_type(get_type_info(function->return_decl));
-    }
-    
-    return FunctionType::get(return_type, ArrayRef<Type *>(arguments.data, arguments.count), function->is_c_varargs);
+    type = type->getPointerElementType();
+    assert(type->isFunctionTy());
+    return static_cast<FunctionType *>(type);
 }
 
 Value *LLVM_Generator::get_value_for_decl(Ast_Declaration *decl) {
@@ -261,6 +268,7 @@ static Value *create_alloca_in_entry(IRBuilder<> *irb, Type *type) {
     
     BasicBlock *entry = &func->getEntryBlock();
     irb->SetInsertPoint(entry->getTerminator());
+    
     Value *alloca = irb->CreateAlloca(type);
     
     irb->SetInsertPoint(current_block);
@@ -534,18 +542,25 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             auto ident = static_cast<Ast_Identifier *>(expression);
             assert(ident->resolved_declaration);
             
-            assert(ident->resolved_declaration->type == AST_DECLARATION);
-            auto decl = static_cast<Ast_Declaration *>(ident->resolved_declaration);
-            
-            if (decl->is_let && !decl->is_readonly_variable) {
-                return emit_expression(decl->initializer_expression);
+            if (ident->resolved_declaration->type == AST_DECLARATION) {
+                auto decl = static_cast<Ast_Declaration *>(ident->resolved_declaration);
+                
+                if (decl->is_let && !decl->is_readonly_variable) {
+                    return emit_expression(decl->initializer_expression);
+                }
+                
+                auto value = get_value_for_decl(decl);
+                
+                if (!is_lvalue) return irb->CreateLoad(value);
+                
+                return value;
+            } else if (ident->resolved_declaration->type == AST_FUNCTION) {
+                auto func = static_cast<Ast_Function *>(ident->resolved_declaration);
+                
+                return get_or_create_function(func);
+            } else {
+                assert(false);
             }
-            
-            auto value = get_value_for_decl(decl);
-            
-            if (!is_lvalue) return irb->CreateLoad(value);
-            
-            return value;
         }
         
         case AST_DECLARATION: {
@@ -572,9 +587,12 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             auto call = static_cast<Ast_Function_Call *>(expression);
             
             // @TODO we should get this naturally from an emit_expression, not from an identifier lookup here.
-            auto target_function = static_cast<Ast_Function *>(call->identifier->resolved_declaration);
+            auto type_info = get_type_info(call->function_or_function_ptr);
+            assert(type_info->type == Ast_Type_Info::FUNCTION);
             
-            bool is_c_function = target_function->is_c_function;
+            auto function_target = emit_expression(call->function_or_function_ptr);
+            
+            bool is_c_function = type_info->is_c_function;
             bool is_win32 = TargetMachine->getTargetTriple().isOSWindows();
             
             Array<Value *> args;
@@ -603,8 +621,8 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             
             // promote C vararg arguments if they are not the required sizes
             // for ints, this typically means promoting i8 and i16 to i32.
-            if (target_function->is_c_varargs) {
-                for (array_count_type i = target_function->arguments.count; i < call->argument_list.count; ++i) {
+            if (type_info->is_c_varargs) {
+                for (array_count_type i = type_info->arguments.count; i < call->argument_list.count; ++i) {
                     auto value = args[i];
                     auto arg   = call->argument_list[i];
                     
@@ -624,10 +642,8 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 }
             }
             
-            auto func = get_or_create_function(target_function);
-            
-            assert(func);
-            return irb->CreateCall(func, ArrayRef<Value *>(args.data, args.count));
+            assert(function_target);
+            return irb->CreateCall(function_target, ArrayRef<Value *>(args.data, args.count));
         }
         
         case AST_DEREFERENCE: {

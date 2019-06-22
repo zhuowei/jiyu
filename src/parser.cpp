@@ -140,12 +140,7 @@ Ast_Expression *Parser::parse_postfix_expression() {
             Ast_Function_Call *call = AST_NEW(Ast_Function_Call);
             next_token();
             
-            // @HACK @HACK @HACK
-            // @HACK @HACK @HACK
-            // @HACK @HACK @HACK
-            // @HACK @HACK @HACK
-            assert(sub_expression->type == AST_IDENTIFIER);
-            call->identifier = reinterpret_cast<Ast_Identifier *>(sub_expression);
+            call->function_or_function_ptr = sub_expression;
             
             bool found_argument = false;
             token = peek_token();
