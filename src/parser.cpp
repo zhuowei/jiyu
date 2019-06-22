@@ -158,7 +158,7 @@ Ast_Expression *Parser::parse_postfix_expression() {
                 auto expr = parse_expression();
                 if (!expr) {
                     // @FixME report_error
-                    compiler->report_error(expr, "Malformed expression found while parsing parameter list.\n");
+                    compiler->report_error(call, "Malformed expression found while parsing parameter list.\n");
                     return nullptr;
                 }
                 call->argument_list.add(expr);
@@ -723,27 +723,27 @@ Ast_Expression *Parser::parse_statement() {
         if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
         return ret;
     }
-
+    
     if (token->type == '#') {
         next_token();
-
+        
         token = peek_token();
         if (!expect_and_eat(Token::IDENTIFIER)) return nullptr;
-
+        
         if (token->string == to_string("load")) {
             Ast_Directive_Load *load = AST_NEW(Ast_Directive_Load);
-
+            
             token = peek_token();
             String name = token->string;
             String base_path = basename(lexer->filename);
-
+            
             next_token();
             if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
-
+            
             const int MAX_PATH = 512;
             char fullname[MAX_PATH];
             snprintf(fullname, MAX_PATH, "%.*s%.*s", base_path.length, base_path.data, name.length, name.data);
-
+            
             load->target_filename = copy_string(to_string(fullname));
             load->target_scope    = get_current_scope();
             compiler->queue_directive(load);

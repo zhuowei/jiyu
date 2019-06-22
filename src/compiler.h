@@ -56,7 +56,7 @@ struct Compiler {
     bool is_metaprogram = false;
     s64 errors_reported = 0;
     String executable_name;
-
+    
     Sema *sema;
     Copier *copier;
     LLVM_Generator *llvm_gen;
@@ -112,7 +112,7 @@ struct Compiler {
     void init();
     
     Atom *make_atom(String name);
-
+    
     void queue_directive(Ast_Expression *directive);
     void resolve_directives();
     
@@ -141,6 +141,12 @@ bool is_float_type(Ast_Type_Info *info) {
 inline
 bool is_pointer_type(Ast_Type_Info *info) {
     return info->type == Ast_Type_Info::POINTER;
+}
+
+inline
+bool is_aggregate_type(Ast_Type_Info *info) {
+    // @TODO arrays
+    return info->type == Ast_Type_Info::STRUCT || info->type == Ast_Type_Info::STRING;
 }
 
 inline

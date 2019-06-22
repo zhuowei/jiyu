@@ -28,6 +28,7 @@ namespace llvm {
         class ThreadSafeContext;
         class MangleAndInterner;
     };
+    
 };
 
 struct Compiler;

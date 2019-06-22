@@ -175,8 +175,13 @@ extern "C" {
             args.add(to_string("shell32.lib"));
             args.add(to_string("gdi32.lib"));
             args.add(to_string("legacy_stdio_definitions.lib"));
-            args.add(to_string("/Fe:"));
-            args.add(compiler->executable_name);
+            
+            String output_name = compiler->executable_name;
+            char executable_name[LINE_SIZE];
+            snprintf(executable_name, LINE_SIZE, "/Fe:%.*s", output_name.length, output_name.data);
+            args.add(to_string(executable_name));
+            // args.add(to_string("/Fe:"));
+            // args.add(compiler->executable_name);
             
             
             auto cmd_line = get_command_line(&args);
@@ -220,6 +225,7 @@ extern "C" {
     }
     
     EXPORT bool compiler_load_file(Compiler *compiler, String filename) {
+        printf("Filename: %.*s\n", filename.length, filename.data);
         perform_load(compiler, filename, compiler->global_scope);
         
         return compiler->errors_reported == 0;
@@ -227,6 +233,8 @@ extern "C" {
     
     EXPORT bool compiler_typecheck_program(Compiler *compiler) {
         compiler->resolve_directives();
+        if (compiler->errors_reported) return false;
+        
         assert(compiler->directive_queue.count == 0);
         
         compiler->sema->typecheck_scope(compiler->global_scope);

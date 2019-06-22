@@ -68,8 +68,6 @@ void LLVM_Generator::init() {
     auto RM = Optional<Reloc::Model>();
     TargetMachine = Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
     
-    
-    
     auto ctx = llvm::make_unique<LLVMContext>();
     thread_safe_context = new ThreadSafeContext(std::move(ctx));
     llvm_context = thread_safe_context->getContext();
@@ -215,12 +213,27 @@ FunctionType *LLVM_Generator::create_function_type(Ast_Function *function) {
     Array<Type *> arguments;
     Type *return_type = type_void;
     
+    bool is_c_function = function->is_c_function;
+    bool is_win32 = TargetMachine->getTargetTriple().isOSWindows();
+    
     for (auto &arg : function->arguments) {
         auto arg_type = get_type_info(arg);
         
-        if (arg_type  == compiler->type_void) continue;
+        if (arg_type == compiler->type_void) continue;
         
         Type *type = get_type(arg_type);
+        
+        if (is_c_function && is_win32 && is_aggregate_type(arg_type)) {
+            assert(arg_type->size >= 0);
+            
+            // @TargetInfo this is only true for x64 too
+            const int _8BYTES = 8;
+            if (arg_type->size > _8BYTES) {
+                arguments.add(type->getPointerTo());
+                continue;
+            }
+        }
+        
         arguments.add(type);
     }
     
@@ -284,24 +297,24 @@ Value *LLVM_Generator::dereference(Value *value, s64 element_path_index, bool is
 void LLVM_Generator::default_init_struct(Value *decl_value, Ast_Type_Info *info) {
     assert(info->type == Ast_Type_Info::STRUCT);
     assert(info->struct_decl);
-
+    
     auto _struct = info->struct_decl;
-
+    
     auto null_value = Constant::getNullValue(get_type(info));
     assert(null_value->getType() == decl_value->getType()->getPointerElementType());
     irb->CreateStore(null_value, decl_value);
-
+    
     s32 element_path_index = 0;
     for (auto member: _struct->member_scope.declarations) {
         if (member->type == AST_DECLARATION) {
             auto decl = static_cast<Ast_Declaration *>(member);
-
+            
             if (decl->is_let) continue;
             assert(decl->is_struct_member);
-
+            
             if (decl->initializer_expression) {
                 auto expr = emit_expression(decl->initializer_expression);
-
+                
                 auto gep = dereference(decl_value, element_path_index, true);
                 irb->CreateStore(expr, gep);
             } else {
@@ -311,7 +324,7 @@ void LLVM_Generator::default_init_struct(Value *decl_value, Ast_Type_Info *info)
                     default_init_struct(gep, mem_info);
                 }
             }
-
+            
             element_path_index++;
         }
     }
@@ -558,13 +571,35 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
         case AST_FUNCTION_CALL: {
             auto call = static_cast<Ast_Function_Call *>(expression);
             
+            // @TODO we should get this naturally from an emit_expression, not from an identifier lookup here.
+            auto target_function = static_cast<Ast_Function *>(call->identifier->resolved_declaration);
+            
+            bool is_c_function = target_function->is_c_function;
+            bool is_win32 = TargetMachine->getTargetTriple().isOSWindows();
+            
             Array<Value *> args;
             for (auto &it : call->argument_list) {
                 auto value = emit_expression(it);
+                
+                auto info = get_type_info(it);
+                
+                if (is_c_function && is_win32 && is_aggregate_type(info)) {
+                    assert(info->size >= 0);
+                    
+                    const int _8BYTES = 8;
+                    if (info->size > _8BYTES) {
+                        auto alloca = create_alloca_in_entry(irb, get_type(info));
+                        
+                        irb->CreateStore(value, alloca);
+                        args.add(alloca);
+                        continue;
+                    }
+                }
+                
                 args.add(value);
             }
             
-            auto target_function = static_cast<Ast_Function *>(call->identifier->resolved_declaration);
+            // @TODO isnt this incorrect? since we pass in all argument_list items in above?
             
             // promote C vararg arguments if they are not the required sizes
             // for ints, this typically means promoting i8 and i16 to i32.
@@ -576,7 +611,7 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                     auto type = value->getType();
                     if (type->isIntegerTy() && type->getPrimitiveSizeInBits() < type_i32->getPrimitiveSizeInBits()) {
                         assert(get_type_info(arg)->type == Ast_Type_Info::INTEGER ||
-                                get_type_info(arg)->type == Ast_Type_Info::BOOL);
+                               get_type_info(arg)->type == Ast_Type_Info::BOOL);
                         if (get_type_info(arg)->is_signed) {
                             args[i] = irb->CreateSExt(value, type_i32);
                         } else {
@@ -971,8 +1006,8 @@ void LLVM_Generator::emit_function(Ast_Function *function) {
 #include <stdio.h>
 
 void LLVM_Jitter::init() {
-    llvm::sys::DynamicLibrary::LoadLibraryPermanently("OpenGL");
-    llvm::sys::DynamicLibrary::LoadLibraryPermanently("/usr/local/Cellar/glfw/3.3/lib/libglfw.dylib");
+    // llvm::sys::DynamicLibrary::LoadLibraryPermanently("OpenGL");
+    // llvm::sys::DynamicLibrary::LoadLibraryPermanently("/usr/local/Cellar/glfw/3.3/lib/libglfw.dylib");
     auto JTMB = JITTargetMachineBuilder::detectHost();
     
     if (!JTMB) {
@@ -988,11 +1023,11 @@ void LLVM_Jitter::init() {
     
     ExecutionSession ES;
     RTDyldObjectLinkingLayer ObjectLayer(ES, []() { return llvm::make_unique<SectionMemoryManager>(); });
-
+    
 #ifdef WIN32
     ObjectLayer.setOverrideObjectFlagsWithResponsibilityFlags(true);
 #endif
-
+    
     IRCompileLayer CompileLayer(ES, ObjectLayer, ConcurrentIRCompiler(*JTMB));
     
     MangleAndInterner Mangle(ES, *DL);
