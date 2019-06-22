@@ -1115,6 +1115,8 @@ Ast_Function *Parser::parse_function() {
     
     if (!expect_and_eat((Token::Type) '(')) return nullptr;
     
+    scope_stack.add(&function->arguments_scope);
+    
     token = peek_token();
     while (token->type != Token::END) {
         
@@ -1149,6 +1151,8 @@ Ast_Function *Parser::parse_function() {
         
         token = peek_token();
     }
+    
+    scope_stack.pop();
     
     if (!expect_and_eat((Token::Type) ')')) return nullptr;
     

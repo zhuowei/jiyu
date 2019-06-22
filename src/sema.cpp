@@ -710,6 +710,14 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 decl->type_info = decl->initializer_expression->type_info;
             }
             
+            if (!decl->is_let && decl->identifier && decl->identifier->enclosing_scope == compiler->global_scope) {
+                if (decl->initializer_expression && !resolves_to_literal_value(decl->initializer_expression)) {
+                    compiler->report_error(decl, "Global variable may only be initialized by a literal expression.\n");
+                }
+                
+                compiler->global_decl_emission_queue.add(decl);
+            }
+            
             if (decl->type_info && decl->initializer_expression) {
                 bool allow_coerce_to_ptr_void = true;
                 typecheck_and_implicit_cast_expression_pair(decl, decl->initializer_expression, nullptr, &decl->initializer_expression, allow_coerce_to_ptr_void);
@@ -1586,6 +1594,8 @@ Ast_Type_Info *Sema::resolve_type_inst(Ast_Type_Instantiation *type_inst) {
 void Sema::typecheck_function_header(Ast_Function *function) {
     if (function->type_info) return;
     
+    if (compiler->errors_reported) return;
+    
     if (function->is_c_function && function->is_template_function) {
         compiler->report_error(function, "Function declared @c_function cannot have template arguments.\n");
     }
@@ -1632,6 +1642,8 @@ void Sema::typecheck_function(Ast_Function *function) {
     typecheck_function_header(function);
     
     if (function->is_template_function) return; // dont even attempt to typecheck the body because we dont handle polymorphic templates here!
+    
+    if (compiler->errors_reported) return;
     
     if (!function->body_checked) {
         function->body_checked = true;

@@ -185,6 +185,7 @@ extern "C" {
             args.add(to_string("shell32.lib"));
             args.add(to_string("gdi32.lib"));
             args.add(to_string("legacy_stdio_definitions.lib"));
+            args.add(to_string("/DEBUG"));
             
             String output_name = compiler->executable_name;
             char executable_name[LINE_SIZE];
@@ -254,6 +255,13 @@ extern "C" {
     
     EXPORT bool compiler_generate_llvm_module(Compiler *compiler) {
         // @Incomplete global variables
+        
+        for (auto decl: compiler->global_decl_emission_queue) {
+            assert(!decl->is_let);
+            assert(decl->identifier->enclosing_scope == compiler->global_scope);
+            
+            compiler->llvm_gen->emit_global_variable(decl);
+        }
         
         for (auto &function : compiler->function_emission_queue) {
             compiler->llvm_gen->emit_function(function);

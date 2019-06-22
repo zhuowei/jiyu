@@ -99,7 +99,8 @@ struct Compiler {
     Atom *atom_main;
     Atom *atom___strings_match;
     
-    Array<Ast_Function *>   function_emission_queue;
+    Array<Ast_Function *>    function_emission_queue;
+    Array<Ast_Declaration *> global_decl_emission_queue;
     Array<Ast_Expression *> directive_queue;
     
     Compiler() {
@@ -161,6 +162,10 @@ inline
 bool is_valid_primitive_cast(Ast_Type_Info *target, Ast_Type_Info *source) {
     if (target->type == Ast_Type_Info::POINTER) {
         return (source->type == Ast_Type_Info::INTEGER || source->type == Ast_Type_Info::POINTER);
+    }
+    
+    if (target->type == Ast_Type_Info::FUNCTION) {
+        return source->type == Ast_Type_Info::POINTER || source->type == Ast_Type_Info::FUNCTION;
     }
     
     if (target->type == Ast_Type_Info::INTEGER) {

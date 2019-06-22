@@ -84,6 +84,7 @@ struct LLVM_Generator {
     llvm::FunctionType *create_function_type(Ast_Function *function);
     void emit_scope(Ast_Scope *scope);
     void emit_function(Ast_Function *function);
+    void emit_global_variable(Ast_Declaration *decl);
     llvm::Value *emit_expression(Ast_Expression *expression, bool is_lvalue = false);
 };
 

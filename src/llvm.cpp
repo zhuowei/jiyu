@@ -18,6 +18,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/IR/GlobalVariable.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/raw_ostream.h"
@@ -549,6 +550,15 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                     return emit_expression(decl->initializer_expression);
                 }
                 
+                if (decl->identifier && decl->identifier->enclosing_scope == compiler->global_scope) {
+                    String name = decl->identifier->name->name;
+                    auto value = llvm_module->getNamedGlobal(string_ref(name));
+                    assert(value);
+                    
+                    if (!is_lvalue) return irb->CreateLoad(value);
+                    return value;
+                }
+                
                 auto value = get_value_for_decl(decl);
                 
                 if (!is_lvalue) return irb->CreateLoad(value);
@@ -709,6 +719,8 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 return irb->CreatePtrToInt(value, dst_type);
             } else if (is_int_type(src) && is_pointer_type(dst)) {
                 return irb->CreateIntToPtr(value, dst_type);
+            } else if (is_pointer_type(src) && dst->type == Ast_Type_Info::FUNCTION) {
+                return irb->CreatePointerCast(value, dst_type);
             }
             
             assert(false);
@@ -1017,6 +1029,25 @@ void LLVM_Generator::emit_function(Ast_Function *function) {
     }
     // func->dump();
     decl_value_map.clear();
+}
+
+void LLVM_Generator::emit_global_variable(Ast_Declaration *decl) {
+    bool is_constant = false;
+    String name = decl->identifier->name->name;
+    Type *type = get_type(get_type_info(decl));
+    
+    Constant *const_init = nullptr;
+    if (decl->initializer_expression) {
+        auto init = emit_expression(decl->initializer_expression);
+        const_init = dyn_cast<llvm::Constant>(init);
+        assert(const_init);
+    } else {
+        const_init = Constant::getNullValue(type);
+    }
+    
+    auto GV = new GlobalVariable(*llvm_module, type, is_constant, GlobalVariable::InternalLinkage, const_init, string_ref(name));
+    
+    printf("EMIT GV: '%.*s'\n", name.length, name.data);
 }
 
 #include <stdio.h>
