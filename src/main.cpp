@@ -225,7 +225,6 @@ extern "C" {
     }
     
     EXPORT bool compiler_load_file(Compiler *compiler, String filename) {
-        printf("Filename: %.*s\n", filename.length, filename.data);
         perform_load(compiler, filename, compiler->global_scope);
         
         return compiler->errors_reported == 0;

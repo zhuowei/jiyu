@@ -557,21 +557,21 @@ Tuple<bool, u64> Sema::function_call_is_viable(Ast_Function_Call *call, Ast_Type
 }
 
 void Sema::collect_function_overloads_for_atom(Atom *atom, Ast_Scope *start, Array<Ast_Function *> *overload_set) {
-    printf("Start\n");
+    // printf("Start\n");
     while (start) {
         
         for (auto it : start->declarations) {
             if (it->type == AST_FUNCTION) {
                 auto function = static_cast<Ast_Function *>(it);
                 if (function->identifier->name == atom) {
-                    printf("Adding overlaod: %p\n", function);
+                    // printf("Adding overlaod: %p\n", function);
                     overload_set->add(function);
                 }
             }
         }
         
         start = start->parent;
-        printf("Ascending\n");
+        // printf("Ascending\n");
     }
 }
 
@@ -635,22 +635,24 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 // @FixMe pass in ident
                 compiler->report_error(ident, "Undeclared identifier '%.*s'\n", name.length, name.data);
             } else {
-                typecheck_expression(decl);
-                
                 if (decl->type == AST_FUNCTION) {
+                    assert(ident->overload_set.count == 0);
                     collect_function_overloads_for_atom(ident->name, ident->enclosing_scope, &ident->overload_set);
                     
                     if (!overload_set_allowed && ident->overload_set.count > 1) {
                         String name = ident->name->name;
                         compiler->report_error(ident, "Ambiguous use of overloaded function '%.*s' (%d overloads).\n", name.length, name.data, ident->overload_set.count);
                         
+                        /*
                         for (auto overload: ident->overload_set) {
                             compiler->report_error(overload, "DEBUG: here\n");
                         }
+                        */
                         return;
                     } else if (!overload_set_allowed) {
                         assert(ident->overload_set.count == 1);
                         
+                        typecheck_expression(decl);
                         ident->resolved_declaration = decl;
                         ident->type_info = get_type_info(decl);
                         return;
