@@ -129,6 +129,8 @@ struct Ast_Type_Instantiation : Ast_Expression {
     Ast_Expression *array_size_expression = nullptr;
     bool array_is_dynamic = false;
     
+    Ast_Function *function_header = nullptr;
+    
     Ast_Type_Info *type_value = nullptr;
 };
 
@@ -272,6 +274,7 @@ struct Ast_Function : Ast_Expression {
     bool is_template_function = false;
     
     String linkage_name;
+    bool body_checked = false;
 };
 
 struct Ast_Cast : Ast_Expression {

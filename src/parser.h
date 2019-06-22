@@ -56,6 +56,7 @@ struct Parser {
     
     Ast_Declaration *parse_variable_declaration(bool expect_var_keyword);
     void parse_scope(Ast_Scope *scope, bool requires_braces, bool only_one_statement = false);
+    
     Ast_Function *parse_function();
 };
 

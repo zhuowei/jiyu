@@ -285,6 +285,8 @@ void Compiler::report_error_valist(String filename, String source, Span error_lo
     error_location.get_surrounding_lines(source, 1, &start_char, &end_char, &num_lines);
     
     assert(start_char >= 0 && end_char >= 0);
+    assert(end_char <= source.length);
+    assert(start_char <= end_char);
     // assert(num_lines >= 0);
     
     // printf("start char: %d\n", start_char);
@@ -297,7 +299,7 @@ void Compiler::report_error_valist(String filename, String source, Span error_lo
     
     string_length_type char_current = start_char;
     for (string_length_type i = 0; i < num_lines; ++i) {
-        String temp = s;
+        // String temp = s;
         
         printf(">    ");
         
@@ -319,10 +321,7 @@ void Compiler::report_error_valist(String filename, String source, Span error_lo
             printf(TTY_RESET);
         }
         
-        temp.length = temp.length - s.length;
-        
-        s.data = temp.data + temp.length + 1;
-        s.length = (end_char - start_char) - (temp.length + 1);
+        advance(&s);
         
         putchar('\n');
     }

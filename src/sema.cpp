@@ -654,7 +654,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                         
                         typecheck_expression(decl);
                         ident->resolved_declaration = decl;
-                        ident->type_info = get_type_info(decl);
+                        ident->type_info = compiler->type_void;
                         return;
                     }
                     
@@ -662,6 +662,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     // Set to void for now, Ast_Function_Call code will either error or fix this up.
                     ident->type_info = compiler->type_void;
                 } else {
+                    typecheck_expression(decl);
                     ident->resolved_declaration = decl;
                     ident->type_info = decl->type_info;
                 }
@@ -923,7 +924,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             if (subexpression->type == AST_IDENTIFIER) {
                 auto identifier = static_cast<Ast_Identifier *>(subexpression);
                 
-                if (!identifier->resolved_declaration) {
+                if (identifier->overload_set.count) {
                     auto overload_set = identifier->overload_set;
                     
                     if (overload_set.count == 0) {
@@ -1568,11 +1569,21 @@ Ast_Type_Info *Sema::resolve_type_inst(Ast_Type_Instantiation *type_inst) {
         return type_inst->type_value;
     }
     
+    if (type_inst->function_header) {
+        typecheck_function_header(type_inst->function_header);
+        
+        if (compiler->errors_reported) return nullptr;
+        
+        type_inst->type_value = get_type_info(type_inst->function_header);
+        assert(type_inst->type_value);
+        return type_inst->type_value;
+    }
+    
     assert(false);
     return nullptr;
 }
 
-void Sema::typecheck_function(Ast_Function *function) {
+void Sema::typecheck_function_header(Ast_Function *function) {
     if (function->type_info) return;
     
     if (function->is_c_function && function->is_template_function) {
@@ -1602,14 +1613,7 @@ void Sema::typecheck_function(Ast_Function *function) {
     
     if (function->is_c_varargs && !function->is_c_function) {
         compiler->report_error(function, "Function must be tagged @c_function in order to use temporary_c_vararg.\n");
-    }
-    
-    if (function->is_c_function) {
-        function->linkage_name = function->identifier->name->name;
-    } else {
-        function->linkage_name = get_mangled_name(compiler, function);
-        String name = function->linkage_name;
-        // printf("Mangled name: '%.*s'\n", name.length, name.data);
+        return;
     }
     
     if (function->is_c_function) {
@@ -1621,16 +1625,34 @@ void Sema::typecheck_function(Ast_Function *function) {
         */
     }
     
-    if (function->is_c_function && function->scope) {
-        compiler->report_error(function, "Function marked @c_function cannot have a body.\n");
-        return;
-    }
-    
     function->type_info = make_function_type(compiler, function);
+}
+
+void Sema::typecheck_function(Ast_Function *function) {
+    typecheck_function_header(function);
     
-    if (function->scope) {
-        typecheck_scope(function->scope);
+    if (function->is_template_function) return; // dont even attempt to typecheck the body because we dont handle polymorphic templates here!
+    
+    if (!function->body_checked) {
+        function->body_checked = true;
+        
+        if (function->is_c_function) {
+            function->linkage_name = function->identifier->name->name;
+        } else {
+            function->linkage_name = get_mangled_name(compiler, function);
+            String name = function->linkage_name;
+            // printf("Mangled name: '%.*s'\n", name.length, name.data);
+        }
+        
+        if (function->is_c_function && function->scope) {
+            compiler->report_error(function, "Function marked @c_function cannot have a body.\n");
+            return;
+        }
+        
+        if (function->scope) {
+            typecheck_scope(function->scope);
+        }
+        
+        compiler->function_emission_queue.add(function);
     }
-    
-    compiler->function_emission_queue.add(function);
 }

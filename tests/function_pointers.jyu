@@ -1,0 +1,15 @@
+
+func @c_function printf(fmt: *uint8, temporary_c_vararg);
+
+func test(a: int32) -> bool {
+	printf("A: %d\n".data, a);
+	return a != 0;
+}
+
+func main() {
+	var my_func_ptr = test;
+
+	var result = my_func_ptr(1);
+
+	var func_ptr_2: @c_function (a: int32, b: float) -> bool;
+}

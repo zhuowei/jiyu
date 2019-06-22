@@ -954,6 +954,100 @@ Ast_Type_Instantiation *Parser::parse_type_inst() {
         return type_inst;
     }
     
+    if (token->type == Token::TAG_C_FUNCTION) {
+        next_token();
+        
+        // @TODO do we want to restructure this so that one can mix @c_function with a typealias?
+        
+        auto func_type_inst = parse_type_inst();
+        if (compiler->errors_reported) return nullptr;
+        
+        if (!func_type_inst->function_header) {
+            compiler->report_error(token, "Tag @c_function may only preceed a function type.\n");
+            return nullptr;
+        }
+        
+        func_type_inst->function_header->is_c_function = true;
+        return func_type_inst;
+    }
+    
+    if (token->type == '(') {
+        Ast_Type_Instantiation *final_type_inst = AST_NEW(Ast_Type_Instantiation);
+        next_token();
+        
+        Array<Ast_Declaration *> members;
+        bool is_c_varargs = false;
+        
+        token = peek_token();
+        while (token->type != Token::END) {
+            
+            if (members.count > 0 && token->type == ',') {
+                next_token();
+                token = peek_token();
+            } else  if (token->type == ')') break;
+            
+            // @Temporary
+            // @Temporary
+            // @Temporary
+            if (token->type == Token::TEMPORARY_KEYWORD_C_VARARGS) {
+                next_token();
+                is_c_varargs = true;
+                
+                token = peek_token();
+                if (token->type != ')') {
+                    compiler->report_error(token, "Expected ')' following 'temporary_c_vararg' declarator.\n");
+                    return nullptr;
+                }
+                break;
+            }
+            
+            Ast_Declaration *decl = parse_variable_declaration(false);
+            if (decl) {
+                decl->is_let = true;
+                members.add(decl);
+            }
+            
+            if (compiler->errors_reported) return nullptr;
+            
+            token = peek_token();
+        }
+        
+        if (!expect_and_eat((Token::Type) ')')) return nullptr;
+        
+        if (peek_token()->type == Token::ARROW) {
+            Ast_Function *function = AST_NEW(Ast_Function);
+            function->is_c_varargs = is_c_varargs;
+            
+            for (auto arg: members) function->arguments.add(arg);
+            
+            token = peek_token();
+            if (!expect_and_eat(Token::ARROW)) return nullptr;
+            
+            Ast_Type_Instantiation *type_inst = parse_type_inst();
+            if (!type_inst) {
+                compiler->report_error(token, "Could not parse type following '->'.\n");
+                return nullptr;
+            }
+            
+            // @Cleanup change this from a declaration to just the type-instantiation?
+            Ast_Declaration *decl = AST_NEW(Ast_Declaration);
+            // decl->identifier = nullptr;
+            decl->type_inst = type_inst;
+            
+            function->return_decl = decl;
+            
+            token = peek_token();
+            
+            final_type_inst->function_header = function;
+            return final_type_inst;
+        } else {
+            compiler->report_error(final_type_inst, "Tuples are not supported yet!\n");
+            return nullptr;
+        }
+        
+        return nullptr;
+    }
+    
     return nullptr;
 }
 

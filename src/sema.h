@@ -33,6 +33,8 @@ struct Sema {
     Tuple<u64, Ast_Expression *> typecheck_and_implicit_cast_single_expression(Ast_Expression *expression, Ast_Type_Info *target_type_info, bool allow_coerce_to_ptr_void);
     Tuple<u64, u64> typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast_Expression *right, Ast_Expression **result_left, Ast_Expression **result_right, bool allow_coerce_to_ptr_void);
     void typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_numeric_type = nullptr, bool overload_set_allowed = false);
+    
+    void typecheck_function_header(Ast_Function *function);
     void typecheck_function(Ast_Function *function);
 };
 
