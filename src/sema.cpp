@@ -567,6 +567,11 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
     if (expression->type_info) return;
     
     switch (expression->type) {
+        case AST_DIRECTIVE_LOAD: {
+            // @TODO Should we assert or error here if the directive has not yet been executed?
+            expression->type_info = compiler->type_void;
+            return;
+        }
         case AST_IDENTIFIER: {
             auto ident = static_cast<Ast_Identifier *>(expression);
             assert(ident->name);

@@ -272,6 +272,19 @@ struct Array {
         data[count] = element;
         count += 1;
     }
+
+    T unordered_remove(array_count_type index) {
+        assert(index >= 0 && index < count);
+
+        T last = pop();
+        // if index is still within the valid range (index was not referencing the last item)
+        // we put the last item in the slot we're removing.
+        if (index < count) {
+            (*this)[index] = last;
+        }
+        
+        return last;
+    }
     
     T pop() {
         assert(count > 0);

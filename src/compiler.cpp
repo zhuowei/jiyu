@@ -192,6 +192,35 @@ void Compiler::init() {
     atom___strings_match = make_atom(to_string("__strings_match"));
 }
 
+void Compiler::queue_directive(Ast_Expression *directive) {
+    assert(directive->type == AST_DIRECTIVE_LOAD || directive->type == AST_DIRECTIVE_STATIC_IF);
+
+    directive_queue.add(directive);
+}
+
+void Compiler::resolve_directives() {
+    // Spin on the queue length since directives can cause more directives to be added in
+    while (directive_queue.count) {
+        auto directive = directive_queue[0];
+
+        if (directive->type == AST_DIRECTIVE_LOAD) {
+            auto load = static_cast<Ast_Directive_Load *>(directive);
+
+            auto name = load->target_filename;
+            printf("DEBUG: load '%.*s'\n", name.length, name.data);
+
+            void perform_load(Compiler *compiler, String filename, Ast_Scope *target_scope);
+            perform_load(this, load->target_filename, load->target_scope);
+
+            if (this->errors_reported) return;
+
+            directive_queue.unordered_remove(0);
+        } else {
+            assert(false);
+        }
+    }
+}
+
 Atom *Compiler::make_atom(String name) {
     Atom *atom = atom_table->find_atom(name);
     if (!atom) {

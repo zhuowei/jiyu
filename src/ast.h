@@ -34,6 +34,8 @@ enum Ast_Type {
     AST_SIZEOF,
     AST_FOR,
     AST_STRUCT,
+    AST_DIRECTIVE_LOAD,
+    AST_DIRECTIVE_STATIC_IF,
 };
 
 struct Ast {
@@ -289,6 +291,17 @@ struct Ast_For : Ast_Expression {
     
     Ast_Scope iterator_declaration_scope;
     Ast_Scope body;
+};
+
+struct Ast_Directive_Load : Ast_Expression {
+    Ast_Directive_Load() { type = AST_DIRECTIVE_LOAD; }
+
+    Ast_Scope *target_scope;
+    String     target_filename;
+};
+
+struct Ast_Directive_Static_If : Ast_Expression {
+    Ast_Directive_Static_If() { type = AST_DIRECTIVE_STATIC_IF; }
 };
 
 

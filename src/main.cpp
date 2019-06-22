@@ -226,6 +226,9 @@ extern "C" {
     }
     
     EXPORT bool compiler_typecheck_program(Compiler *compiler) {
+        compiler->resolve_directives();
+        assert(compiler->directive_queue.count == 0);
+        
         compiler->sema->typecheck_scope(compiler->global_scope);
         return compiler->errors_reported == 0;
     }

@@ -730,26 +730,29 @@ Ast_Expression *Parser::parse_statement() {
         token = peek_token();
         if (!expect_and_eat(Token::IDENTIFIER)) return nullptr;
 
-        if (token->string != to_string("load")) {
+        if (token->string == to_string("load")) {
+            Ast_Directive_Load *load = AST_NEW(Ast_Directive_Load);
+
+            token = peek_token();
+            String name = token->string;
+            String base_path = basename(lexer->filename);
+
+            next_token();
+            if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
+
+            const int MAX_PATH = 512;
+            char fullname[MAX_PATH];
+            snprintf(fullname, MAX_PATH, "%.*s%.*s", base_path.length, base_path.data, name.length, name.data);
+
+            load->target_filename = copy_string(to_string(fullname));
+            load->target_scope    = get_current_scope();
+            compiler->queue_directive(load);
+            return load;
+        } else {
             String s  = token->string;
             compiler->report_error(token, "Unknown compiler directive '%.*s'.\n", s.length, s.data);
             return nullptr;
         }
-
-        token = peek_token();
-        String name = token->string;
-        String base_path = basename(lexer->filename);
-
-        next_token();
-        if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
-
-        const int MAX_PATH = 512;
-        char fullname[MAX_PATH];
-        snprintf(fullname, MAX_PATH, "%.*s%.*s", base_path.length, base_path.data, name.length, name.data);
-
-        void perform_load(Compiler *compiler, String filename, Ast_Scope *target_scope);
-        perform_load(compiler, to_string(fullname), get_current_scope());
-        return nullptr;
     }
     
     if (token->type == '{') {
