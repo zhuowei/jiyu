@@ -1555,14 +1555,17 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             lit->text_span = os->text_span;
             lit->literal_type = Ast_Literal::BOOL;
             lit->type_info = compiler->type_bool;
+            lit->bool_value = false;
             
             // @TODO @FixMe this should be based off of what the LLVM target is
 #ifdef WIN32
             lit->bool_value = (ident->name == compiler->atom_Windows);
+            assert(false);
 #elif defined(MACOSX)
             lit->bool_value = (ident->name == compiler->atom_MacOSX);
 #elif defined(LINUX)
             lit->bool_value = (ident->name == compiler->atom_Linux);
+            assert(false);
 #else
             assert(false);
 #endif
@@ -1574,6 +1577,9 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 compiler->report_error(ident, "Unrecognized os() option '%.*s'.\n", op.length, op.data);
                 return;
             }
+
+            String op = name->name;
+            printf("os(): %.*s: %s\n", op.length, op.data, lit->bool_value ? "true" : "false");
             
             os->type_info = lit->type_info;
             os->substitution = lit;

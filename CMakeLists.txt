@@ -23,11 +23,25 @@ set (JIYU_SRCS
     src/copier.cpp
 )
 
-if (WIN32)
 
+if (UNIX AND NOT APPLE)
+    set(LINUX TRUE)
+endif ()
+
+# compiler options
+if (WIN32)
 else()
 	add_definitions(-Wno-writable-strings --std=c++11 -g -fno-rtti -Wall -Wextra -pedantic -Wno-unused-parameter)
 endif()
+
+if (APPLE)
+    add_definitions(-DMACOSX)
+endif()
+
+if (LINUX)
+    add_definitions(-DLINUX)
+endif ()
+
 
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})

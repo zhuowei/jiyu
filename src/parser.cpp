@@ -760,7 +760,7 @@ Ast_Expression *Parser::parse_statement() {
             _if->then_scope = AST_NEW(Ast_Scope);
             _if->then_scope->parent = get_current_scope();
             
-            parse_scope(_if->then_scope, true, false, false);
+            parse_scope(_if->then_scope, true);
             
             token = peek_token();
             if (token->type == Token::KEYWORD_ELSE) {

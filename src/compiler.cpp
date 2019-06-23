@@ -246,6 +246,13 @@ void Compiler::resolve_directives() {
             
             scope_i_belong_to = scope_i_belong_to->parent;
         }
+
+        if (directive->type == AST_DIRECTIVE_LOAD) {
+            auto load = static_cast<Ast_Directive_Load *>(directive);
+            
+            auto name = load->target_filename;
+            printf("DEBUG: load '%.*s', rejected? : %s\n", name.length, name.data, rejected ? "true" : "false");
+        }
         
         if (rejected) {
             directive_queue.unordered_remove(0);
