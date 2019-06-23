@@ -760,7 +760,7 @@ Ast_Expression *Parser::parse_statement() {
             _if->then_scope = AST_NEW(Ast_Scope);
             _if->then_scope->parent = get_current_scope();
             
-            parse_scope(_if->then_scope, true);
+            parse_scope(_if->then_scope, true, false, false);
             
             token = peek_token();
             if (token->type == Token::KEYWORD_ELSE) {
@@ -809,8 +809,8 @@ Ast_Expression *Parser::parse_statement() {
     return left;
 }
 
-void Parser::parse_scope(Ast_Scope *scope, bool requires_braces, bool only_one_statement) {
-    scope_stack.add(scope);
+void Parser::parse_scope(Ast_Scope *scope, bool requires_braces, bool only_one_statement, bool push_scope) {
+    if (push_scope) scope_stack.add(scope);
     
     if (requires_braces && !expect_and_eat((Token::Type) '{')) return;
     
@@ -841,7 +841,7 @@ void Parser::parse_scope(Ast_Scope *scope, bool requires_braces, bool only_one_s
     
     if (requires_braces && !expect_and_eat((Token::Type) '}')) return;
     
-    scope_stack.pop();
+    if (push_scope) scope_stack.pop();
 }
 
 Ast_Declaration *Parser::parse_variable_declaration(bool expect_var_keyword) {

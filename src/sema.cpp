@@ -670,11 +670,11 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                         String name = ident->name->name;
                         compiler->report_error(ident, "Ambiguous use of overloaded function '%.*s' (%d overloads).\n", name.length, name.data, ident->overload_set.count);
                         
-                        /*
+                        
                         for (auto overload: ident->overload_set) {
                             compiler->report_error(overload, "DEBUG: here\n");
                         }
-                        */
+                        
                         return;
                     } else if (!overload_set_allowed) {
                         assert(ident->overload_set.count == 1);

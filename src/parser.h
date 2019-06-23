@@ -55,7 +55,7 @@ struct Parser {
     Ast_Type_Instantiation *parse_type_inst();
     
     Ast_Declaration *parse_variable_declaration(bool expect_var_keyword);
-    void parse_scope(Ast_Scope *scope, bool requires_braces, bool only_one_statement = false);
+    void parse_scope(Ast_Scope *scope, bool requires_braces, bool only_one_statement = false, bool push_scope = true);
     
     Ast_Function *parse_function();
 };

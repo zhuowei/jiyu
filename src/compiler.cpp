@@ -369,7 +369,7 @@ void Compiler::report_error_valist(String filename, String source, Span error_lo
     
     error_location.map_to_text_coordinates(source, &l0, &c0, &l1, &c1);
     
-    printf("%.*s:%d,%d: ", filename.length, filename.data, l0, c0);
+    printf("w%lld:%.*s:%d,%d: ", this->instance_number, filename.length, filename.data, l0, c0);
     vprintf(fmt, args);
     printf("\n");
     

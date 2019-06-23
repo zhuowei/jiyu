@@ -524,6 +524,12 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                         
                         return irb->CreateAnd(left, right);
                     }
+                    case Token::OR_OP: {
+                        assert(left->getType()  == type_i1);
+                        assert(right->getType() == type_i1);
+                        
+                        return irb->CreateOr(left, right);
+                    }
                     default: assert(false);
                 }
             }

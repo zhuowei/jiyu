@@ -126,10 +126,14 @@ func __strings_match(a: string, b: string) -> bool {
 
 )C01N";
 
+s64 __compiler_instance_count = 0;
+
 extern "C" {
     EXPORT Compiler *create_compiler_instance() {
         auto compiler = new Compiler();
         compiler->init();
+        
+        compiler->instance_number = __compiler_instance_count++;
         
         compiler->executable_name = to_string("output");
         
