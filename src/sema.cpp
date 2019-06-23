@@ -556,19 +556,29 @@ Tuple<bool, u64> Sema::function_call_is_viable(Ast_Function_Call *call, Ast_Type
     return MakeTuple<bool, u64>(true, viability_score);
 }
 
+void Sema::collect_function_overloads_for_atom_in_scope(Atom *atom, Ast_Scope *start, Array<Ast_Function *> *overload_set) {
+    assert(start->rejected_by_static_if == false);
+    for (auto it : start->declarations) {
+        while (it->substitution) it = it->substitution;
+        
+        if (it->type == AST_FUNCTION) {
+            auto function = static_cast<Ast_Function *>(it);
+            if (function->identifier->name == atom) {
+                // printf("Adding overlaod: %p\n", function);
+                overload_set->add(function);
+            }
+        } else if (it->type == AST_SCOPE_EXPANSION) {
+            auto exp = static_cast<Ast_Scope_Expansion *>(it);
+            collect_function_overloads_for_atom_in_scope(atom, exp->scope, overload_set);
+        }
+    }
+}
+
 void Sema::collect_function_overloads_for_atom(Atom *atom, Ast_Scope *start, Array<Ast_Function *> *overload_set) {
     // printf("Start\n");
     while (start) {
         
-        for (auto it : start->declarations) {
-            if (it->type == AST_FUNCTION) {
-                auto function = static_cast<Ast_Function *>(it);
-                if (function->identifier->name == atom) {
-                    // printf("Adding overlaod: %p\n", function);
-                    overload_set->add(function);
-                }
-            }
-        }
+        collect_function_overloads_for_atom_in_scope(atom, start, overload_set);
         
         start = start->parent;
         // printf("Ascending\n");
@@ -592,6 +602,10 @@ Ast_Expression *Sema::find_declaration_for_atom_in_scope(Ast_Scope *scope, Atom 
         } else if (it->type == AST_STRUCT) {
             auto _struct = static_cast<Ast_Struct *>(it);
             if (_struct->identifier->name == atom) return _struct;
+        } else if (it->type == AST_SCOPE_EXPANSION) {
+            auto exp = static_cast<Ast_Scope_Expansion *>(it);
+            auto decl = find_declaration_for_atom_in_scope(exp->scope, atom);
+            if (decl) return decl;
         } else {
             assert(false);
         }
@@ -623,6 +637,19 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             expression->type_info = compiler->type_void;
             return;
         }
+        case AST_DIRECTIVE_STATIC_IF: {
+            expression->type_info = compiler->type_void;
+            return;
+        }
+        
+        case AST_SCOPE_EXPANSION: {
+            auto exp = static_cast<Ast_Scope_Expansion *>(expression);
+            exp->type_info = compiler->type_void;
+            
+            typecheck_scope(exp->scope);
+            return;
+        }
+        
         case AST_IDENTIFIER: {
             auto ident = static_cast<Ast_Identifier *>(expression);
             assert(ident->name);

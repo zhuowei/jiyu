@@ -101,7 +101,7 @@ struct Compiler {
     
     Array<Ast_Function *>    function_emission_queue;
     Array<Ast_Declaration *> global_decl_emission_queue;
-    Array<Ast_Expression *> directive_queue;
+    Array<Ast_Directive *> directive_queue;
     
     Compiler() {
         atom_table = new Atom_Table();
@@ -114,7 +114,7 @@ struct Compiler {
     
     Atom *make_atom(String name);
     
-    void queue_directive(Ast_Expression *directive);
+    void queue_directive(Ast_Directive *directive);
     void resolve_directives();
     
     void report_error_valist(String filename, String source, Span error_location, char *fmt, va_list args);

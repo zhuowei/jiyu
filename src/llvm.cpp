@@ -121,7 +121,7 @@ void LLVM_Generator::finalize() {
     legacy::PassManager pass;
     auto FileType = TargetMachine::CGFT_ObjectFile;
     
-    // llvm_module->dump();
+    llvm_module->dump();
     
     pass.add(createVerifierPass(false));
     if (TargetMachine->addPassesToEmitFile(pass, dest, nullptr, FileType)) {
@@ -347,6 +347,12 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             auto scope = static_cast<Ast_Scope *>(expression);
             emit_scope(scope);
             
+            return nullptr;
+        }
+        
+        case AST_SCOPE_EXPANSION: {
+            auto exp = static_cast<Ast_Scope_Expansion *>(expression);
+            emit_scope(exp->scope);
             return nullptr;
         }
         

@@ -3,6 +3,7 @@
 #include "compiler.h"
 #include "lexer.h"
 #include "parser.h"
+#include "sema.h"
 
 #include <stdio.h> // for vprintf
 
@@ -220,7 +221,7 @@ void Compiler::init() {
     atom___strings_match = make_atom(to_string("__strings_match"));
 }
 
-void Compiler::queue_directive(Ast_Expression *directive) {
+void Compiler::queue_directive(Ast_Directive *directive) {
     assert(directive->type == AST_DIRECTIVE_LOAD || directive->type == AST_DIRECTIVE_STATIC_IF);
     
     directive_queue.add(directive);
@@ -230,6 +231,22 @@ void Compiler::resolve_directives() {
     // Spin on the queue length since directives can cause more directives to be added in
     while (directive_queue.count) {
         auto directive = directive_queue[0];
+        auto scope_i_belong_to = directive->scope_i_belong_to;
+        
+        bool rejected = false;
+        while (scope_i_belong_to) {
+            if (scope_i_belong_to->rejected_by_static_if) {
+                rejected = true;
+                break;
+            }
+            
+            scope_i_belong_to = scope_i_belong_to->parent;
+        }
+        
+        if (rejected) {
+            directive_queue.unordered_remove(0);
+            continue;
+        }
         
         if (directive->type == AST_DIRECTIVE_LOAD) {
             auto load = static_cast<Ast_Directive_Load *>(directive);
@@ -241,6 +258,77 @@ void Compiler::resolve_directives() {
             perform_load(this, load->target_filename, load->target_scope);
             
             if (this->errors_reported) return;
+            
+            directive_queue.unordered_remove(0);
+        } else if (directive->type == AST_DIRECTIVE_STATIC_IF) {
+            auto _if = static_cast<Ast_Directive_Static_If *>(directive);
+            
+            sema->typecheck_expression(_if->condition);
+            
+            auto lit = resolves_to_literal_value(_if->condition);
+            assert(get_type_info(lit));
+            
+            if (!lit) {
+                this->report_error(_if->condition, "#if condition must be a literal expression.\n");
+                return;
+            }
+            
+            if (_if->then_scope) _if->then_scope->rejected_by_static_if = true;
+            if (_if->else_scope) _if->else_scope->rejected_by_static_if = true;
+            
+            Ast_Scope *chosen_block = nullptr;
+            
+            switch(lit->literal_type) {
+                case Ast_Literal::INTEGER: {
+                    if (lit->integer_value != 0) {
+                        chosen_block = _if->then_scope;
+                    } else {
+                        chosen_block = _if->else_scope;
+                    }
+                    break;
+                }
+                case Ast_Literal::STRING: {
+                    if (lit->string_value != to_string("")) {
+                        chosen_block = _if->then_scope;
+                    } else {
+                        chosen_block = _if->else_scope;
+                    }
+                    break;
+                }
+                
+                case Ast_Literal::FLOAT: {
+                    if (lit->float_value != 0) {
+                        chosen_block = _if->then_scope;
+                    } else {
+                        chosen_block = _if->else_scope;
+                    }
+                    break;
+                }
+                case Ast_Literal::BOOL: {
+                    if (lit->bool_value) {
+                        chosen_block = _if->then_scope;
+                    } else {
+                        chosen_block = _if->else_scope;
+                    }
+                    break;
+                }
+                case Ast_Literal::NULLPTR: {
+                    chosen_block = _if->else_scope;
+                    break;
+                }
+            }
+            
+            if (chosen_block) {
+                chosen_block->rejected_by_static_if = false;
+                
+                Ast_Scope_Expansion *exp = new Ast_Scope_Expansion();
+                exp->text_span = chosen_block->text_span;
+                
+                _if->scope_i_belong_to->declarations.add(exp);
+                
+                exp->scope = chosen_block;
+                _if->substitution = exp;
+            }
             
             directive_queue.unordered_remove(0);
         } else {

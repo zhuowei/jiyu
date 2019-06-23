@@ -36,6 +36,7 @@ enum Ast_Type {
     AST_STRUCT,
     AST_DIRECTIVE_LOAD,
     AST_DIRECTIVE_STATIC_IF,
+    AST_SCOPE_EXPANSION,
 };
 
 struct Ast {
@@ -113,8 +114,16 @@ struct Ast_Scope : Ast_Expression {
     Array<Ast_Expression *> declarations; // really should only contain Ast_Declaration and Ast_Function
     
     bool is_template_argument_block = false;
+    bool rejected_by_static_if = false;
     // Ast_Function   *owning_function = nullptr;
     // Ast_Expression *owning_statement = nullptr;
+};
+
+// Used to specify a scope that was inserted due to the compiler resolving a static_if.
+struct Ast_Scope_Expansion : Ast_Expression {
+    Ast_Scope_Expansion() { type = AST_SCOPE_EXPANSION; }
+    
+    Ast_Scope *scope = nullptr;
 };
 
 struct Ast_Type_Instantiation : Ast_Expression {
@@ -301,15 +310,25 @@ struct Ast_For : Ast_Expression {
     Ast_Scope body;
 };
 
-struct Ast_Directive_Load : Ast_Expression {
+struct Ast_Directive : Ast_Expression {
+    
+    Ast_Scope *scope_i_belong_to = nullptr;
+};
+
+struct Ast_Directive_Load : Ast_Directive {
     Ast_Directive_Load() { type = AST_DIRECTIVE_LOAD; }
     
     Ast_Scope *target_scope;
     String     target_filename;
 };
 
-struct Ast_Directive_Static_If : Ast_Expression {
+struct Ast_Directive_Static_If : Ast_Directive {
     Ast_Directive_Static_If() { type = AST_DIRECTIVE_STATIC_IF; }
+    
+    Ast_Expression *condition = nullptr;
+    
+    Ast_Scope *then_scope = nullptr;
+    Ast_Scope *else_scope = nullptr;
 };
 
 

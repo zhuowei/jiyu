@@ -107,11 +107,11 @@ inline String copy_string(String s) {
 
 inline String basename(String s) {
     while (s.length) {
-        if (s[s.length-1] == '/') return s;
-
+        if (s[s.length-1] == '/' || s[s.length-1] == '\\') return s;
+        
         s.length--;
     }
-
+    
     return s;
 }
 
@@ -272,10 +272,10 @@ struct Array {
         data[count] = element;
         count += 1;
     }
-
+    
     T unordered_remove(array_count_type index) {
         assert(index >= 0 && index < count);
-
+        
         T last = pop();
         // if index is still within the valid range (index was not referencing the last item)
         // we put the last item in the slot we're removing.

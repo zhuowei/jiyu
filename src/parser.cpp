@@ -723,10 +723,13 @@ Ast_Expression *Parser::parse_statement() {
         next_token();
         
         token = peek_token();
-        if (!expect_and_eat(Token::IDENTIFIER)) return nullptr;
         
-        if (token->string == to_string("load")) {
+        if (token->type == Token::IDENTIFIER && token->string == to_string("load")) {
+            if (!expect_and_eat(Token::IDENTIFIER)) return nullptr;
+            
             Ast_Directive_Load *load = AST_NEW(Ast_Directive_Load);
+            load->scope_i_belong_to = get_current_scope();
+            compiler->queue_directive(load);
             
             token = peek_token();
             String name = token->string;
@@ -739,10 +742,37 @@ Ast_Expression *Parser::parse_statement() {
             char fullname[MAX_PATH];
             snprintf(fullname, MAX_PATH, "%.*s%.*s", base_path.length, base_path.data, name.length, name.data);
             
+            printf("BASE PATH: %.*s\n", base_path.length, base_path.data);
+            
             load->target_filename = copy_string(to_string(fullname));
             load->target_scope    = get_current_scope();
-            compiler->queue_directive(load);
             return load;
+        } else if (token->type == Token::KEYWORD_IF) {
+            if (!expect_and_eat(Token::KEYWORD_IF)) return nullptr;
+            
+            Ast_Directive_Static_If *_if = AST_NEW(Ast_Directive_Static_If);
+            _if->scope_i_belong_to = get_current_scope();
+            compiler->queue_directive(_if); // queue the directive early so that further directives that depend on this arent queued first.
+            
+            token = peek_token();
+            _if->condition = parse_expression();
+            
+            _if->then_scope = AST_NEW(Ast_Scope);
+            _if->then_scope->parent = get_current_scope();
+            
+            parse_scope(_if->then_scope, true);
+            
+            token = peek_token();
+            if (token->type == Token::KEYWORD_ELSE) {
+                next_token();
+                
+                _if->else_scope = AST_NEW(Ast_Scope);
+                _if->else_scope->parent = get_current_scope();
+                
+                parse_scope(_if->else_scope, true);
+            }
+            
+            return _if;
         } else {
             String s  = token->string;
             compiler->report_error(token, "Unknown compiler directive '%.*s'.\n", s.length, s.data);

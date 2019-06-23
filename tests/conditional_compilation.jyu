@@ -1,0 +1,28 @@
+
+#if true {
+	#if false {
+		
+	} else {
+		#if true {
+			#load "LibC.jyu";
+		}
+	}
+}
+
+#if true {
+	func main() {
+		printf("Test_asdf\n".data);
+		
+		#if false {
+			printf("Test1\n".data);
+		} else {
+			printf("Test14234\n".data);
+		}
+
+		printf("Test_asdf1\n".data);
+	}
+} else {
+	func main() {
+		printf("Test2\n".data);
+	}
+}
