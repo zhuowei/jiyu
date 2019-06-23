@@ -98,6 +98,10 @@ struct Compiler {
     Atom *atom_it_index;
     Atom *atom_main;
     Atom *atom___strings_match;
+    Atom *atom_os;
+    Atom *atom_MacOSX;
+    Atom *atom_Windows;
+    Atom *atom_Linux;
     
     Array<Ast_Function *>    function_emission_queue;
     Array<Ast_Declaration *> global_decl_emission_queue;

@@ -953,6 +953,26 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             auto call = static_cast<Ast_Function_Call *>(expression);
             
             auto subexpression = call->function_or_function_ptr;
+            
+            // Check for the os() case early so we don't error on the identifier lookup.
+            if (subexpression->type == AST_IDENTIFIER) {
+                auto identifier = static_cast<Ast_Identifier *>(subexpression);
+                
+                if (identifier->name == compiler->atom_os) {
+                    if (call->argument_list.count != 1) {
+                        compiler->report_error(call, "os() operator only accepts one argument.\n");
+                        return;
+                    }
+                    
+                    Ast_Os *os = new Ast_Os();
+                    os->text_span = call->text_span;
+                    os->expression = call->argument_list[0];
+                    typecheck_expression(os);
+                    call->substitution = os;
+                    return;
+                }
+            }
+            
             typecheck_expression(subexpression);
             if (compiler->errors_reported) return;
             
@@ -1512,6 +1532,51 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             
             size->type_info = lit->type_info;
             size->substitution = lit;
+            return;
+        }
+        case AST_OS: {
+            auto os = static_cast<Ast_Os *>(expression);
+            
+            // Don't typecheck expression here as we only care about
+            // checking against the parsed Atom. Though, I'm not sure
+            // if this is good behavior in the long run. -josh 23 June 2019
+            assert(os->expression);
+            
+            auto expr = os->expression;
+            while (expr->substitution) expr = expr->substitution;
+            
+            if (expr->type != AST_IDENTIFIER) {
+                compiler->report_error(os->expression, "Argument to os() operator must be an identifier.\n");
+                return;
+            }
+            
+            auto ident = static_cast<Ast_Identifier *>(expr);
+            Ast_Literal *lit = new Ast_Literal();
+            lit->text_span = os->text_span;
+            lit->literal_type = Ast_Literal::BOOL;
+            lit->type_info = compiler->type_bool;
+            
+            // @TODO @FixMe this should be based off of what the LLVM target is
+#ifdef WIN32
+            lit->bool_value = (ident->name == compiler->atom_Windows);
+#elif defined(MACOSX)
+            lit->bool_value = (ident->name == compiler->atom_MacOSX);
+#elif defined(LINUX)
+            lit->bool_value = (ident->name == compiler->atom_Linux);
+#else
+            assert(false);
+#endif
+            Atom *name = ident->name;
+            bool valid_option = (name == compiler->atom_Windows) || (name == compiler->atom_MacOSX) || (name == compiler->atom_Linux);
+            
+            if (!valid_option) {
+                String op = name->name;
+                compiler->report_error(ident, "Unrecognized os() option '%.*s'.\n", op.length, op.data);
+                return;
+            }
+            
+            os->type_info = lit->type_info;
+            os->substitution = lit;
             return;
         }
     }

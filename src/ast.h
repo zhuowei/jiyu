@@ -37,6 +37,7 @@ enum Ast_Type {
     AST_DIRECTIVE_LOAD,
     AST_DIRECTIVE_STATIC_IF,
     AST_SCOPE_EXPANSION,
+    AST_OS,
 };
 
 struct Ast {
@@ -295,6 +296,12 @@ struct Ast_Cast : Ast_Expression {
 struct Ast_Sizeof : Ast_Expression {
     Ast_Sizeof() { type = AST_SIZEOF; }
     Ast_Type_Instantiation *target_type_inst = nullptr;
+};
+
+struct Ast_Os : Ast_Expression {
+    Ast_Os() { type = AST_OS; }
+    
+    Ast_Expression *expression = nullptr;
 };
 
 struct Ast_For : Ast_Expression {

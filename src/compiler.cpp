@@ -219,6 +219,10 @@ void Compiler::init() {
     atom_it_index  = make_atom(to_string("it_index"));
     atom_main      = make_atom(to_string("main"));
     atom___strings_match = make_atom(to_string("__strings_match"));
+    atom_os        = make_atom(to_string("os"));
+    atom_MacOSX    = make_atom(to_string("MacOSX"));
+    atom_Windows   = make_atom(to_string("Windows"));
+    atom_Linux     = make_atom(to_string("Linux"));
 }
 
 void Compiler::queue_directive(Ast_Directive *directive) {
@@ -264,14 +268,16 @@ void Compiler::resolve_directives() {
             auto _if = static_cast<Ast_Directive_Static_If *>(directive);
             
             sema->typecheck_expression(_if->condition);
+            if (this->errors_reported) return;
             
             auto lit = resolves_to_literal_value(_if->condition);
-            assert(get_type_info(lit));
             
             if (!lit) {
                 this->report_error(_if->condition, "#if condition must be a literal expression.\n");
                 return;
             }
+            
+            assert(get_type_info(lit));
             
             if (_if->then_scope) _if->then_scope->rejected_by_static_if = true;
             if (_if->else_scope) _if->else_scope->rejected_by_static_if = true;
