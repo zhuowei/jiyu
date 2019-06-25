@@ -665,7 +665,15 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             }
             
             assert(function_target);
-            return irb->CreateCall(function_target, ArrayRef<Value *>(args.data, args.count));
+            Value *result = irb->CreateCall(function_target, ArrayRef<Value *>(args.data, args.count));
+            
+            if (is_lvalue) {
+                auto alloca = create_alloca_in_entry(irb, result->getType());
+                irb->CreateStore(result, alloca);
+                return alloca;
+            }
+            
+            return result;
         }
         
         case AST_DEREFERENCE: {
