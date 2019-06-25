@@ -232,11 +232,16 @@ void Compiler::queue_directive(Ast_Directive *directive) {
 }
 
 void Compiler::resolve_directives() {
+    // Use ordered_remove here because if we handle these out-of-order in which they were
+    // queued up, then directives that depend on static_if may resolve before the outer static_if does.
+    // All-in-all, I'm not sure if this system is as robust as I'd like and this may need to change,
+    // perhaps to a top-down tree-descent system.
+
     // Spin on the queue length since directives can cause more directives to be added in
     while (directive_queue.count) {
         auto directive = directive_queue[0];
         auto scope_i_belong_to = directive->scope_i_belong_to;
-        
+        assert(scope_i_belong_to);
         bool rejected = false;
         while (scope_i_belong_to) {
             if (scope_i_belong_to->rejected_by_static_if) {
@@ -251,11 +256,11 @@ void Compiler::resolve_directives() {
             auto load = static_cast<Ast_Directive_Load *>(directive);
             
             auto name = load->target_filename;
-            printf("DEBUG: load '%.*s', rejected? : %s\n", name.length, name.data, rejected ? "true" : "false");
+            // printf("%d DEBUG: load '%.*s', rejected? : %s\n", this->instance_number, name.length, name.data, rejected ? "true" : "false");
         }
         
         if (rejected) {
-            directive_queue.unordered_remove(0);
+            directive_queue.ordered_remove(0);
             continue;
         }
         
@@ -263,16 +268,18 @@ void Compiler::resolve_directives() {
             auto load = static_cast<Ast_Directive_Load *>(directive);
             
             auto name = load->target_filename;
-            printf("DEBUG: load '%.*s'\n", name.length, name.data);
+            // printf("%d DEBUG: load '%.*s'\n", this->instance_number, name.length, name.data);
             
             void perform_load(Compiler *compiler, String filename, Ast_Scope *target_scope);
             perform_load(this, load->target_filename, load->target_scope);
             
             if (this->errors_reported) return;
             
-            directive_queue.unordered_remove(0);
+            directive_queue.ordered_remove(0);
         } else if (directive->type == AST_DIRECTIVE_STATIC_IF) {
             auto _if = static_cast<Ast_Directive_Static_If *>(directive);
+            if (_if->then_scope) _if->then_scope->rejected_by_static_if = true;
+            if (_if->else_scope) _if->else_scope->rejected_by_static_if = true;
             
             sema->typecheck_expression(_if->condition);
             if (this->errors_reported) return;
@@ -285,9 +292,6 @@ void Compiler::resolve_directives() {
             }
             
             assert(get_type_info(lit));
-            
-            if (_if->then_scope) _if->then_scope->rejected_by_static_if = true;
-            if (_if->else_scope) _if->else_scope->rejected_by_static_if = true;
             
             Ast_Scope *chosen_block = nullptr;
             
@@ -330,7 +334,7 @@ void Compiler::resolve_directives() {
                     break;
                 }
             }
-            
+
             if (chosen_block) {
                 chosen_block->rejected_by_static_if = false;
                 
@@ -342,8 +346,8 @@ void Compiler::resolve_directives() {
                 exp->scope = chosen_block;
                 _if->substitution = exp;
             }
-            
-            directive_queue.unordered_remove(0);
+
+            directive_queue.ordered_remove(0);
         } else {
             assert(false);
         }

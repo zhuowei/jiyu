@@ -22,6 +22,20 @@ Ast_Scope *Parser::get_current_scope() {
     return scope_stack[scope_stack.count-1];
 }
 
+Ast_Scope *Parser::get_current_canonical_scope() {
+    return canonical_scope_stack[canonical_scope_stack.count-1];
+}
+
+void Parser::push_scopes(Ast_Scope *scope) {
+    scope_stack.add(scope);
+    canonical_scope_stack.add(scope);
+}
+
+void Parser::pop_scopes() {
+    scope_stack.pop();
+    canonical_scope_stack.pop();
+}
+
 bool Parser::expect(Token::Type type) {
     Token *token = peek_token();
     
@@ -728,7 +742,7 @@ Ast_Expression *Parser::parse_statement() {
             if (!expect_and_eat(Token::IDENTIFIER)) return nullptr;
             
             Ast_Directive_Load *load = AST_NEW(Ast_Directive_Load);
-            load->scope_i_belong_to = get_current_scope();
+            load->scope_i_belong_to = get_current_canonical_scope();
             compiler->queue_directive(load);
             
             token = peek_token();
@@ -741,9 +755,7 @@ Ast_Expression *Parser::parse_statement() {
             const int MAX_PATH = 512;
             char fullname[MAX_PATH];
             snprintf(fullname, MAX_PATH, "%.*s%.*s", base_path.length, base_path.data, name.length, name.data);
-            
-            printf("BASE PATH: %.*s\n", base_path.length, base_path.data);
-            
+
             load->target_filename = copy_string(to_string(fullname));
             load->target_scope    = get_current_scope();
             return load;
@@ -751,25 +763,29 @@ Ast_Expression *Parser::parse_statement() {
             if (!expect_and_eat(Token::KEYWORD_IF)) return nullptr;
             
             Ast_Directive_Static_If *_if = AST_NEW(Ast_Directive_Static_If);
-            _if->scope_i_belong_to = get_current_scope();
+            _if->scope_i_belong_to = get_current_canonical_scope();
             compiler->queue_directive(_if); // queue the directive early so that further directives that depend on this arent queued first.
-            
+
             token = peek_token();
             _if->condition = parse_expression();
             
             _if->then_scope = AST_NEW(Ast_Scope);
-            _if->then_scope->parent = get_current_scope();
+            _if->then_scope->parent = get_current_canonical_scope();
             
-            parse_scope(_if->then_scope, true);
-            
+            canonical_scope_stack.add(_if->then_scope);
+            parse_scope(_if->then_scope, true, false, false);
+            canonical_scope_stack.pop();
+
             token = peek_token();
             if (token->type == Token::KEYWORD_ELSE) {
                 next_token();
                 
                 _if->else_scope = AST_NEW(Ast_Scope);
-                _if->else_scope->parent = get_current_scope();
+                _if->else_scope->parent = get_current_canonical_scope();
                 
-                parse_scope(_if->else_scope, true);
+                canonical_scope_stack.add(_if->else_scope);
+                parse_scope(_if->else_scope, true, false, false);
+                canonical_scope_stack.pop();
             }
             
             return _if;
@@ -810,7 +826,7 @@ Ast_Expression *Parser::parse_statement() {
 }
 
 void Parser::parse_scope(Ast_Scope *scope, bool requires_braces, bool only_one_statement, bool push_scope) {
-    if (push_scope) scope_stack.add(scope);
+    if (push_scope) push_scopes(scope);
     
     if (requires_braces && !expect_and_eat((Token::Type) '{')) return;
     
@@ -841,7 +857,7 @@ void Parser::parse_scope(Ast_Scope *scope, bool requires_braces, bool only_one_s
     
     if (requires_braces && !expect_and_eat((Token::Type) '}')) return;
     
-    if (push_scope) scope_stack.pop();
+    if (push_scope) pop_scopes();
 }
 
 Ast_Declaration *Parser::parse_variable_declaration(bool expect_var_keyword) {
@@ -1109,7 +1125,7 @@ Ast_Function *Parser::parse_function() {
         function->polymorphic_type_alias_scope = polymorphic_scope;
         next_token();
         
-        scope_stack.add(polymorphic_scope);
+        push_scopes(polymorphic_scope);
         
         token = peek_token();
         while (token->type != Token::END) {
@@ -1136,7 +1152,7 @@ Ast_Function *Parser::parse_function() {
             break;
         }
         
-        scope_stack.pop();
+        pop_scopes();
         
         function->arguments_scope.parent = polymorphic_scope;
         
@@ -1145,7 +1161,7 @@ Ast_Function *Parser::parse_function() {
     
     if (!expect_and_eat((Token::Type) '(')) return nullptr;
     
-    scope_stack.add(&function->arguments_scope);
+    push_scopes(&function->arguments_scope);
     
     token = peek_token();
     while (token->type != Token::END) {
@@ -1182,7 +1198,7 @@ Ast_Function *Parser::parse_function() {
         token = peek_token();
     }
     
-    scope_stack.pop();
+    pop_scopes();
     
     if (!expect_and_eat((Token::Type) ')')) return nullptr;
     

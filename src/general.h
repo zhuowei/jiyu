@@ -275,6 +275,7 @@ struct Array {
     
     T unordered_remove(array_count_type index) {
         assert(index >= 0 && index < count);
+        assert(count);
         
         T last = pop();
         // if index is still within the valid range (index was not referencing the last item)
@@ -284,6 +285,17 @@ struct Array {
         }
         
         return last;
+    }
+
+    T ordered_remove(array_count_type index) {
+        assert(index >= 0 && index < count);
+        assert(count);
+
+        T item = (*this)[index];
+        memmove(data + index, data + index + 1, ((count - index) - 1) * sizeof(T));
+
+        count--;
+        return item;
     }
     
     T pop() {

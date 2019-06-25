@@ -15,6 +15,8 @@ struct Parser {
     array_count_type current_token = 0;
     
     Array<Ast_Scope *> scope_stack;
+    Array<Ast_Scope *> canonical_scope_stack;
+
     Ast_Function *currently_parsing_function = nullptr;
     
     Parser(Lexer *lexer) {
@@ -26,6 +28,9 @@ struct Parser {
     Token *peek_token();
     
     Ast_Scope *get_current_scope();
+    Ast_Scope *get_current_canonical_scope();
+    void push_scopes(Ast_Scope *scope);
+    void pop_scopes();
     
     bool expect(Token::Type type);
     bool expect_and_eat(Token::Type type);
