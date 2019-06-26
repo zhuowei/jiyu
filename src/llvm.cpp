@@ -613,6 +613,7 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             assert(type_info->type == Ast_Type_Info::FUNCTION);
             
             auto function_target = emit_expression(call->function_or_function_ptr);
+            assert(function_target);
             
             bool is_c_function = type_info->is_c_function;
             bool is_win32 = TargetMachine->getTargetTriple().isOSWindows();
@@ -664,7 +665,6 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                 }
             }
             
-            assert(function_target);
             Value *result = irb->CreateCall(function_target, ArrayRef<Value *>(args.data, args.count));
             
             if (is_lvalue) {
@@ -948,6 +948,19 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
             
             if (!is_lvalue) return irb->CreateLoad(element);
             return element;
+        }
+        
+        case AST_FUNCTION: {
+            auto func = static_cast<Ast_Function *>(expression);
+            
+            if (func->is_template_function) {
+                // we should not get here if this was an expression use of a function
+                return nullptr;
+            }
+            
+            // we only need the header to be generated when we come here, only the compiler instance can choose to emit a function.
+            return get_or_create_function(func);
+            
         }
     }
     

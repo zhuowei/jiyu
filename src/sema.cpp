@@ -626,6 +626,16 @@ Ast_Expression *Sema::find_declaration_for_atom(Atom *atom, Ast_Scope *start) {
     return nullptr;
 }
 
+s64 pad_to_alignment(s64 current, s64 align) {
+    assert(align >= 1);
+    
+    s64 minum = current & (align-1);
+    if (minum) {
+        current += align - minum;
+    }
+    
+    return current;
+}
 
 void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_numeric_type, bool overload_set_allowed) {
     while (expression->substitution) expression = expression->substitution;
@@ -992,7 +1002,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     Ast_Function *function = nullptr;
                     if (overload_set.count == 1) {
                         function = overload_set[0];
-                        typecheck_function(function);
+                        typecheck_function_header(function);
                         if (compiler->errors_reported) return;
                         
                         if (function->is_template_function) {
@@ -1010,7 +1020,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                                 if (!overload) continue; // no polymorphs that match this call, so skip it
                             }
                             
-                            typecheck_function(overload);
+                            typecheck_function_header(overload);
                             if (compiler->errors_reported) return;
                             
                             auto tuple = function_call_is_viable(call, get_type_info(overload), false);
@@ -1077,15 +1087,41 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 deref->left = un; // Dont set substitution here, otherwise we'll infinite loop
             }
             
-            
-            assert(get_type_info(deref->left));
-            
-            // @Incomplete structs
             auto left_type = get_type_info(deref->left);
+            assert(left_type);
+            
+            bool is_type_use = false;
+            auto left = deref->left;
+            if (left_type->type == Ast_Type_Info::TYPE) {
+                is_type_use = true;
+                while (left->substitution) left = left->substitution;
+                
+                if (left->type == AST_IDENTIFIER) {
+                    auto identifier = static_cast<Ast_Identifier *>(left);
+                    
+                    left = identifier->resolved_declaration;
+                    left_type = get_type_info(left);
+                }
+                
+                if (left->type == AST_TYPE_ALIAS) {
+                    auto alias = static_cast<Ast_Type_Alias *>(left);
+                    
+                    left_type = alias->type_value->alias_of;
+                    while (left_type->type == Ast_Type_Info::ALIAS) left_type = left_type->alias_of;
+                    
+                    assert(left_type);
+                    assert(alias->type_value->type == Ast_Type_Info::ALIAS);
+                } else if (left->type == AST_STRUCT) {
+                    auto _struct = static_cast<Ast_Struct *>(left);
+                    
+                    left_type = _struct->type_value;
+                    assert(left_type);
+                }
+            }
+            
             if (left_type->type != Ast_Type_Info::STRING &&
                 left_type->type != Ast_Type_Info::ARRAY  &&
                 left_type->type != Ast_Type_Info::STRUCT) {
-                // @Incomplete report_error
                 compiler->report_error(deref, "Attempt to dereference a type that is not a string, struct, or array!\n");
                 return;
             }
@@ -1176,6 +1212,32 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                         deref->type_info = member.type_info;
                         deref->byte_offset = -1; // @Incomplete
                         break;
+                    }
+                }
+                
+                if (found && is_type_use) {
+                    compiler->report_error(deref, "Attempt to use struct variable member without an instance!\n");
+                    return;
+                }
+                
+                if (!found) {
+                    auto _struct = left_type->struct_decl;
+                    assert(_struct);
+                    
+                    auto decl = find_declaration_for_atom_in_scope(&_struct->member_scope, field_atom);
+                    if (decl && decl->type == AST_DECLARATION) {
+                        auto declaration = static_cast<Ast_Declaration *>(decl);
+                        
+                        // this is not supposed to happen because regular var's should be handled by the above code.
+                        if (is_type_use) assert(declaration->is_let);
+                    }
+                    
+                    if (decl) {
+                        typecheck_expression(decl);
+                        if (compiler->errors_reported) return;
+                        
+                        deref->substitution = decl;
+                        found = true;
                     }
                 }
                 
@@ -1443,6 +1505,10 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         case AST_STRUCT: {
             auto _struct = static_cast<Ast_Struct *>(expression);
             
+            // Set this early so we dont recurse indefinitely
+            _struct->type_value = make_struct_type(_struct);
+            _struct->type_info = compiler->type_info_type;
+            
             // flag stuct member declarations
             for (auto _decl : _struct->member_scope.declarations) {
                 if (_decl->type == AST_DECLARATION) {
@@ -1451,11 +1517,55 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 }
             }
             
+            {
+                auto info = _struct->type_value;
+                assert(info->type == Ast_Type_Info::STRUCT);
+                assert(info->struct_decl == _struct);
+                
+                s64 size_cursor = 0;
+                s64 biggest_alignment = 1;
+                s64 element_path_index = 0;
+                
+                // This is likely super @Incomplete
+                for (auto expr : _struct->member_scope.declarations) {
+                    if (expr->type == AST_DECLARATION) {
+                        
+                        // @Cleanup @Hack we need to be able to handle other structs, functions, typealiases or at least punt on them.
+                        auto decl = static_cast<Ast_Declaration *>(expr);
+                        typecheck_expression(decl);
+                        if (compiler->errors_reported) return;
+                        
+                        assert(decl && decl->type_info);
+                        
+                        Ast_Type_Info::Struct_Member member;
+                        member.name = decl->identifier->name;
+                        member.type_info = decl->type_info;
+                        member.is_let = decl->is_let;
+                        
+                        if (!member.is_let) {
+                            member.element_index = element_path_index;
+                            element_path_index++;
+                        }
+                        
+                        info->struct_members.add(member);
+                        
+                        size_cursor = pad_to_alignment(size_cursor, member.type_info->alignment);
+                        size_cursor += member.type_info->size;
+                        
+                        if (member.type_info->alignment > biggest_alignment) {
+                            biggest_alignment = member.type_info->alignment;
+                        }
+                    }
+                }
+                
+                info->alignment = biggest_alignment;
+                info->size = size_cursor;
+                info->stride = pad_to_alignment(info->size, info->alignment);
+            }
+            
             typecheck_scope(&_struct->member_scope);
             if (compiler->errors_reported) return;
             
-            _struct->type_value = make_struct_type(_struct);
-            _struct->type_info = compiler->type_info_type;
             return;
         }
         

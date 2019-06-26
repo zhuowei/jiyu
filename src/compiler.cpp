@@ -65,56 +65,10 @@ Ast_Type_Info *make_pointer_type(Ast_Type_Info *pointee) {
     return info;
 }
 
-s64 pad_to_alignment(s64 current, s64 align) {
-    assert(align >= 1);
-    
-    s64 minum = current & (align-1);
-    if (minum) {
-        current += align - minum;
-    }
-    
-    return current;
-}
-
 Ast_Type_Info *make_struct_type(Ast_Struct *_struct) {
     Ast_Type_Info *info = new Ast_Type_Info();
     info->type = Ast_Type_Info::STRUCT;
-    
-    s64 size_cursor = 0;
-    s64 biggest_alignment = 1;
-    s64 element_path_index = 0;
-    
-    for (auto expr : _struct->member_scope.declarations) {
-        assert(expr->type == AST_DECLARATION);
-        
-        // @Cleanup @Hack we need to be able to handle other structs, functions, typealiases or at least punt on them.
-        auto decl = static_cast<Ast_Declaration *>(expr);
-        assert(decl && decl->type_info);
-        
-        Ast_Type_Info::Struct_Member member;
-        member.name = decl->identifier->name;
-        member.type_info = decl->type_info;
-        member.is_let = decl->is_let;
-        
-        if (!member.is_let) {
-            member.element_index = element_path_index;
-            element_path_index++;
-        }
-        
-        info->struct_members.add(member);
-        
-        size_cursor = pad_to_alignment(size_cursor, member.type_info->alignment);
-        size_cursor += member.type_info->size;
-        
-        if (member.type_info->alignment > biggest_alignment) {
-            biggest_alignment = member.type_info->alignment;
-        }
-    }
-    
-    info->alignment = biggest_alignment;
     info->struct_decl = _struct;
-    info->size = size_cursor;
-    info->stride = pad_to_alignment(info->size, info->alignment);
     return info;
 }
 
@@ -236,7 +190,7 @@ void Compiler::resolve_directives() {
     // queued up, then directives that depend on static_if may resolve before the outer static_if does.
     // All-in-all, I'm not sure if this system is as robust as I'd like and this may need to change,
     // perhaps to a top-down tree-descent system.
-
+    
     // Spin on the queue length since directives can cause more directives to be added in
     while (directive_queue.count) {
         auto directive = directive_queue[0];
@@ -251,7 +205,7 @@ void Compiler::resolve_directives() {
             
             scope_i_belong_to = scope_i_belong_to->parent;
         }
-
+        
         if (directive->type == AST_DIRECTIVE_LOAD) {
             auto load = static_cast<Ast_Directive_Load *>(directive);
             
@@ -334,7 +288,7 @@ void Compiler::resolve_directives() {
                     break;
                 }
             }
-
+            
             if (chosen_block) {
                 chosen_block->rejected_by_static_if = false;
                 
@@ -346,7 +300,7 @@ void Compiler::resolve_directives() {
                 exp->scope = chosen_block;
                 _if->substitution = exp;
             }
-
+            
             directive_queue.ordered_remove(0);
         } else {
             assert(false);
