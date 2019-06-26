@@ -857,6 +857,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         case AST_UNARY_EXPRESSION: {
             auto un = static_cast<Ast_Unary_Expression *>(expression);
             typecheck_expression(un->expression);
+            if (compiler->errors_reported) return;
             
             if (un->operator_type == Token::STAR) {
                 if (!expression_is_lvalue(un->expression, true)) {
@@ -1075,6 +1076,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         case AST_DEREFERENCE: {
             auto deref = static_cast<Ast_Dereference *>(expression);
             typecheck_expression(deref->left);
+            if (compiler->errors_reported) return;
             
             if (get_type_info(deref->left)->type == Ast_Type_Info::POINTER) {
                 // we allow you to dereference once through a pointer

@@ -453,6 +453,10 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                             return irb->CreateIntToPtr(result, get_type(left_type));
                         }
                         
+                        if (is_float_type(left_type) && is_float_type(right_type)) {
+                            return irb->CreateFSub(left, right);
+                        }
+                        
                         return irb->CreateSub(left, right);
                     }
                     case Token::EQ_OP: {
