@@ -826,10 +826,14 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     left_type->type == Ast_Type_Info::POINTER && right_type->type == Ast_Type_Info::INTEGER) {
                     return;
                 }
-                
-                // @TODO report types
+
                 // @TOOD report operator
-                compiler->report_error(bin, "Incompatible types found on lhs and rhs of binary operator.");
+
+                auto lhs = type_to_string(left_type);
+                auto rhs = type_to_string(right_type);
+                compiler->report_error(bin, "Incompatible types found on lhs and rhs of binary operator (%.*s, %.*s).", lhs.length, lhs.data, rhs.length, rhs.data);
+                free(lhs.data);
+                free(rhs.data);
                 return;
             }
             
@@ -1475,8 +1479,16 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             if (compiler->errors_reported) return;
             
             auto expr_type = get_type_info(cast->expression);
-            auto target    = resolve_type_inst(cast->target_type_inst);
             
+            Ast_Type_Info *target = nullptr;
+            if (cast->target_type_inst) {
+                target = resolve_type_inst(cast->target_type_inst);
+            } else {
+                assert(want_numeric_type);
+
+                target = want_numeric_type;
+            }
+
             assert(target);
             
             cast->type_info = target;

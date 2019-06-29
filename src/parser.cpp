@@ -162,7 +162,12 @@ Ast_Expression *Parser::parse_postfix_expression() {
                 
                 if (call->argument_list.count > 0 && token->type == ',') {
                     next_token();
-                } else if (token->type == ')') break;
+                } else if (token->type == ')') {
+                    break;
+                } else if (call->argument_list.count > 0 && token->type != ',') {
+                    compiler->report_error(call->argument_list[call->argument_list.count-1], "Expected ',' while parsing function-call argument list, but got something else.\n");
+                    return call;
+                }
                 
                 auto expr = parse_expression();
                 if (!expr) {
@@ -665,6 +670,8 @@ Ast_Expression *Parser::parse_statement() {
         next_token();
         
         _if->condition = parse_expression();
+        if (compiler->errors_reported) return _if;
+
         if (!_if->condition) {
             // @Cleanup move to sema?
             compiler->report_error(_if, "'if' must be followed by an expression.\n");

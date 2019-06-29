@@ -46,6 +46,6 @@ endif ()
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
-llvm_map_components_to_libnames(LLVM_LIBS X86 asmparser asmprinter passes orcjit)
+llvm_map_components_to_libnames(LLVM_LIBS ${LLVM_TARGETS_TO_BUILD} asmparser asmprinter passes orcjit)
 add_executable(jiyu ${JIYU_SRCS})
 target_link_libraries(jiyu ${CMAKE_THREAD_LIBS_INIT} ${LLVM_LIBS})
