@@ -1525,7 +1525,10 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             if (cast->target_type_inst) {
                 target = resolve_type_inst(cast->target_type_inst);
             } else {
-                assert(want_numeric_type);
+                if (!want_numeric_type) {
+                    compiler->report_error(cast, "Cannot infer a type for cast().\n");
+                    return;
+                }
                 
                 target = want_numeric_type;
             }
