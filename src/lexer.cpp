@@ -59,6 +59,12 @@ Token Lexer::make_integer_token(s64 value, Span span) {
     return t;
 }
 
+Token Lexer::make_float_token(double value, Span span) {
+    Token t = make_token(Token::FLOAT, span);
+    t._float = value;
+    return t;
+}
+
 void Lexer::eat_whitespace() {
     while (current_char < text.length && is_whitespace(text[current_char])) {
         current_char++;
@@ -201,6 +207,7 @@ Token Lexer::lex_token() {
         auto number_start = current_char;
         
         int radix = 10;
+        bool is_float = false;
         if (text[current_char] == '0') {
             current_char++;
             
@@ -212,12 +219,37 @@ Token Lexer::lex_token() {
             }
         }
         
-        while (current_char < text.length && is_digit(text[current_char], radix)) current_char++;
+        while (current_char < text.length && (is_digit(text[current_char], radix) || text[current_char] == '.')) {
+            if (text[current_char] == '.') {
+                if (radix == 10) {
+                    if (current_char+1 < text.length && text[current_char+1] == '.') {
+                        // if we encounter the .. operator then bail out.
+                        break;
+                    } else if (current_char+1 < text.length && is_digit(text[current_char+1], radix)) {
+                        is_float = true;
+                    } else {
+                        break;
+                    }
+                } else {
+                    // floats must be radix 10
+                    break;
+                }
+            }
+            
+            current_char++;
+        }
         
         char *value_string = compiler->get_temp_c_string(text.substring(start, current_char - start));
-        auto value = strtoll(value_string, nullptr, radix);
         
-        return make_integer_token(value, Span(start, current_char - start));
+        if (is_float) {
+            auto value = strtod(value_string, nullptr);
+            
+            return make_float_token(value, Span(start, current_char - start));
+        } else {
+            auto value = strtoll(value_string, nullptr, radix);
+            
+            return make_integer_token(value, Span(start, current_char - start));
+        }
     } else if (text[current_char] == '\"') {
         Token value = lex_string('\"');
         return value;
@@ -239,7 +271,7 @@ Token Lexer::lex_token() {
         for (string_length_type i = 0; i < st.length; ++i) {
             out.integer = out.integer | (((u64)st[i] & 0xFF) << i*8);
         }
-
+        
         return out;
     } else if (text[current_char] == '-') {
         if (current_char+1 < text.length && text[current_char+1] == '>') {

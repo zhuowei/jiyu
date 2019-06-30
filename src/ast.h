@@ -116,6 +116,9 @@ struct Ast_Scope : Ast_Expression {
     
     bool is_template_argument_block = false;
     bool rejected_by_static_if = false;
+    
+    Ast_Struct *owning_struct = nullptr;
+    
     // Ast_Function   *owning_function = nullptr;
     // Ast_Expression *owning_statement = nullptr;
 };

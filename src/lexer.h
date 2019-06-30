@@ -27,6 +27,7 @@ struct Token {
         
         END = 256,
         INTEGER,
+        FLOAT,
         IDENTIFIER,
         STRING,
         
@@ -94,7 +95,8 @@ struct Token {
     String filename;
     
     String string;
-    s64 integer = 0;
+    s64    integer = 0;
+    double _float  = 0;
     
     Token() {}
     
@@ -125,6 +127,7 @@ struct Lexer {
     Token make_eof_token();
     Token make_string_token(Token::Type type, Span span, String string);
     Token make_integer_token(s64 value, Span span);
+    Token make_float_token(double value, Span span);
     
     Token lex_string(char delim);
     

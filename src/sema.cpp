@@ -57,11 +57,28 @@ void add_type(String_Builder *builder, Ast_Type_Info *type) {
     }
 }
 
+void maybe_add_parent_scope_name(String_Builder *builder, Ast_Scope *start) {
+    if (start->parent) maybe_add_parent_scope_name(builder, start->parent);
+    
+    if (start->owning_struct) {
+        auto _struct = start->owning_struct;
+        
+        if (_struct->identifier) {
+            String name = _struct->identifier->name->name;
+            
+            builder->print("%d%.*s", name.length, name.length, name.data);
+        }
+    }
+}
+
 String get_mangled_name(Compiler *compiler, Ast_Function *function) {
     if (function->identifier->name == compiler->atom_main) return function->identifier->name->name;
     String_Builder builder;
     
     builder.append("_H");
+    
+    assert(function->scope);
+    maybe_add_parent_scope_name(&builder, function->scope);
     
     String name = function->identifier->name->name;
     builder.print("%d%.*s", name.length, name.length, name.data);
@@ -160,6 +177,21 @@ void print_type_to_builder(String_Builder *builder, Ast_Type_Info *info) {
     
     if (info->type == Ast_Type_Info::VOID) {
         builder->print("void");
+        return;
+    }
+    
+    if (info->type == Ast_Type_Info::ARRAY) {
+        builder->print("[");
+        
+        if (info->is_dynamic) {
+            builder->print("..");
+        } else if (info->array_element_count >= 0) {
+            builder->print("%d", info->array_element_count);
+        }
+        
+        builder->print("] ");
+        
+        print_type_to_builder(builder, info->array_element);
         return;
     }
     
@@ -376,9 +408,13 @@ Tuple<u64, Ast_Expression *> Sema::typecheck_and_implicit_cast_single_expression
 Tuple<u64, u64> Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast_Expression *right, Ast_Expression **result_left, Ast_Expression **result_right, bool allow_coerce_to_ptr_void) {
     if (left->type == AST_LITERAL) {
         typecheck_expression(right);
+        if (compiler->errors_reported) return MakeTuple<u64, u64>(0, 0);
+        
         typecheck_expression(left, get_type_info(right));
     } else {
         typecheck_expression(left);
+        if (compiler->errors_reported) return MakeTuple<u64, u64>(0, 0);
+        
         typecheck_expression(right, get_type_info(left));
     }
     
@@ -826,9 +862,9 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     left_type->type == Ast_Type_Info::POINTER && right_type->type == Ast_Type_Info::INTEGER) {
                     return;
                 }
-
+                
                 // @TOOD report operator
-
+                
                 auto lhs = type_to_string(left_type);
                 auto rhs = type_to_string(right_type);
                 compiler->report_error(bin, "Incompatible types found on lhs and rhs of binary operator (%.*s, %.*s).", lhs.length, lhs.data, rhs.length, rhs.data);
@@ -940,6 +976,11 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 } else {
                     lit->type_info = compiler->type_int32;
                 }
+            }
+            
+            if (lit->literal_type == Ast_Literal::FLOAT) {
+                if (want_numeric_type && want_numeric_type->type == Ast_Type_Info::FLOAT) lit->type_info = want_numeric_type;
+                else lit->type_info = compiler->type_float64; // @TODO we should probably have a check that verifies if the literal can fit in a 32-bit float and then default to that.
             }
             
             if (lit->literal_type == Ast_Literal::STRING)  lit->type_info = compiler->type_string;
@@ -1485,10 +1526,10 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 target = resolve_type_inst(cast->target_type_inst);
             } else {
                 assert(want_numeric_type);
-
+                
                 target = want_numeric_type;
             }
-
+            
             assert(target);
             
             cast->type_info = target;

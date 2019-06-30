@@ -16,7 +16,7 @@ struct Parser {
     
     Array<Ast_Scope *> scope_stack;
     Array<Ast_Scope *> canonical_scope_stack;
-
+    
     Ast_Function *currently_parsing_function = nullptr;
     
     Parser(Lexer *lexer) {

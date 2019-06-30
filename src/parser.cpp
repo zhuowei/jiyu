@@ -90,6 +90,15 @@ Ast_Expression *Parser::parse_primary_expression() {
         return lit;
     }
     
+    if (token->type == Token::FLOAT) {
+        Ast_Literal *lit = AST_NEW(Ast_Literal);
+        next_token();
+        
+        lit->literal_type = Ast_Literal::FLOAT;
+        lit->float_value  = token->_float;
+        return lit;
+    }
+    
     if (token->type == Token::KEYWORD_TRUE || token->type == Token::KEYWORD_FALSE) {
         Ast_Literal *lit = AST_NEW(Ast_Literal);
         next_token();
@@ -643,8 +652,10 @@ Ast_Expression *Parser::parse_statement() {
     if (token->type == Token::KEYWORD_STRUCT) {
         Ast_Struct *_struct = AST_NEW(Ast_Struct);
         next_token();
+        
         _struct->identifier = parse_identifier();
         _struct->member_scope.parent = get_current_scope();
+        _struct->member_scope.owning_struct = _struct;
         parse_scope(&_struct->member_scope, true);
         return _struct;
     }
@@ -671,7 +682,7 @@ Ast_Expression *Parser::parse_statement() {
         
         _if->condition = parse_expression();
         if (compiler->errors_reported) return _if;
-
+        
         if (!_if->condition) {
             // @Cleanup move to sema?
             compiler->report_error(_if, "'if' must be followed by an expression.\n");
@@ -762,7 +773,7 @@ Ast_Expression *Parser::parse_statement() {
             const int MAX_PATH = 512;
             char fullname[MAX_PATH];
             snprintf(fullname, MAX_PATH, "%.*s%.*s", base_path.length, base_path.data, name.length, name.data);
-
+            
             load->target_filename = copy_string(to_string(fullname));
             load->target_scope    = get_current_scope();
             return load;
@@ -772,7 +783,7 @@ Ast_Expression *Parser::parse_statement() {
             Ast_Directive_Static_If *_if = AST_NEW(Ast_Directive_Static_If);
             _if->scope_i_belong_to = get_current_canonical_scope();
             compiler->queue_directive(_if); // queue the directive early so that further directives that depend on this arent queued first.
-
+            
             token = peek_token();
             _if->condition = parse_expression();
             
@@ -782,7 +793,7 @@ Ast_Expression *Parser::parse_statement() {
             canonical_scope_stack.add(_if->then_scope);
             parse_scope(_if->then_scope, true, false, false);
             canonical_scope_stack.pop();
-
+            
             token = peek_token();
             if (token->type == Token::KEYWORD_ELSE) {
                 next_token();
@@ -819,6 +830,13 @@ Ast_Expression *Parser::parse_statement() {
         next_token();
         
         Ast_Expression *right = parse_expression();
+        if (!right) {
+            if (!compiler->errors_reported) {
+                compiler->report_error(token, "Right-hand-side of assignment-statement must contain an expression.\n");
+                return nullptr;
+            }
+        }
+        
         Ast_Binary_Expression *bin = AST_NEW(Ast_Binary_Expression);
         bin->operator_type = Token::EQUALS;
         bin->left = left;
@@ -896,7 +914,12 @@ Ast_Declaration *Parser::parse_variable_declaration(bool expect_var_keyword) {
         next_token();
         
         Ast_Expression *expression = parse_expression();
-        if (!expression) return nullptr;
+        if (!expression) {
+            if (!compiler->errors_reported) {
+                compiler->report_error(peek_token(), "Right-hand-side intialization of declaration must contain an expression.\n");
+            }
+            return nullptr;
+        }
         
         decl->initializer_expression = expression;
     }
