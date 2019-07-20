@@ -254,6 +254,25 @@ extern "C" {
         assert(compiler->directive_queue.count == 0);
         
         compiler->sema->typecheck_scope(compiler->global_scope);
+        
+        // set metaprogram status if main is marked @metaprogram
+        if (!compiler->errors_reported) {
+            auto expr = compiler->sema->find_declaration_for_atom_in_scope(compiler->global_scope, compiler->atom_main);
+            
+            if (!expr) {
+                compiler->report_error((Token *)nullptr, "No function 'main' found in global scope. Aborting.\n");
+                return false;
+            }
+            
+            if (expr->type != AST_FUNCTION) {
+                compiler->report_error(expr, "Expected a function named 'main' in global scope, but got something else.\n");
+                return false;
+            }
+            
+            Ast_Function *function = static_cast<Ast_Function *>(expr);
+            if (function->is_marked_metaprogram) compiler->is_metaprogram = true;
+        }
+        
         return compiler->errors_reported == 0;
     }
     

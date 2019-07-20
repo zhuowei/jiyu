@@ -1881,6 +1881,9 @@ void Sema::typecheck_function_header(Ast_Function *function) {
     }
     
     if (function->is_template_function) {
+        if (function->is_marked_metaprogram) {
+            compiler->report_error(function, "@metaprogram is only valid on the main entry point function.\n");
+        }
         // we dont typecheck template functions, we only typecheck polymorphs, which will make it here on their own.
         function->type_info = compiler->type_void;
         return;
@@ -1934,6 +1937,12 @@ void Sema::typecheck_function(Ast_Function *function) {
             function->linkage_name = get_mangled_name(compiler, function);
             String name = function->linkage_name;
             // printf("Mangled name: '%.*s'\n", name.length, name.data);
+        }
+        
+        if (function->is_marked_metaprogram) {
+            if (function->linkage_name != to_string("main")) {
+                compiler->report_error(function, "@metaprogram tag may only be used on the main entry point function.\n");
+            }
         }
         
         if (function->is_c_function && function->scope) {

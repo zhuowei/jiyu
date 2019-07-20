@@ -282,6 +282,7 @@ struct Ast_Function : Ast_Expression {
     
     Array<Ast_Function *> polymorphed_overloads;
     
+    bool is_marked_metaprogram = false;
     bool is_c_function = false;
     bool is_c_varargs = false;
     bool is_template_function = false;

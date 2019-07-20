@@ -1047,6 +1047,11 @@ Ast_Type_Instantiation *Parser::parse_type_inst() {
         return func_type_inst;
     }
     
+    if (token->type == Token::TAG_META) {
+        compiler->report_error(token, "@metaprogram tag is not valid for function types.");
+        return nullptr;
+    }
+    
     if (token->type == '(') {
         Ast_Type_Instantiation *final_type_inst = AST_NEW(Ast_Type_Instantiation);
         next_token();
@@ -1141,6 +1146,12 @@ Ast_Function *Parser::parse_function() {
     Token *token = peek_token();
     if (token->type == Token::TAG_C_FUNCTION) {
         function->is_c_function = true;
+        next_token();
+    }
+    
+    token = peek_token();
+    if (token->type == Token::TAG_META) {
+        function->is_marked_metaprogram = true;
         next_token();
     }
     

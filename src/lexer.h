@@ -71,6 +71,7 @@ struct Token {
         KEYWORD_SIZEOF,
         
         TAG_C_FUNCTION,
+        TAG_META,
         
         TEMPORARY_KEYWORD_C_VARARGS = 300,
         
