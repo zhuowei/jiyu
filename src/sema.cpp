@@ -811,9 +811,19 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         case AST_BINARY_EXPRESSION: {
             auto bin = static_cast<Ast_Binary_Expression *>(expression);
             
-            bool allow_coerce_to_ptr_void = bin->operator_type == Token::EQUALS;
+            bool allow_coerce_to_ptr_void = (bin->operator_type == Token::EQUALS);
             
-            typecheck_and_implicit_cast_expression_pair(bin->left, bin->right, &bin->left, &bin->right, allow_coerce_to_ptr_void);
+            if (bin->operator_type == Token::EQUALS) {
+                // we're only allowed to cast on the rhs of an assignment.
+                typecheck_expression(bin->left);
+                if (compiler->errors_reported) return;
+                
+                auto tuple = typecheck_and_implicit_cast_single_expression(bin->right, get_type_info(bin->left), allow_coerce_to_ptr_void);
+                
+                bin->right = tuple.item2;
+            } else {
+                typecheck_and_implicit_cast_expression_pair(bin->left, bin->right, &bin->left, &bin->right, allow_coerce_to_ptr_void);
+            }
             
             if (compiler->errors_reported) return;
             
@@ -896,7 +906,13 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         
         case AST_UNARY_EXPRESSION: {
             auto un = static_cast<Ast_Unary_Expression *>(expression);
-            typecheck_expression(un->expression);
+            if (!(un->operator_type == Token::MINUS || un->operator_type == Token::PLUS)) {
+                // passing on the wanted type here down to a potential literal is only valid
+                // for the - and + operators.
+                want_numeric_type = nullptr;
+            }
+            
+            typecheck_expression(un->expression, want_numeric_type);
             if (compiler->errors_reported) return;
             
             if (un->operator_type == Token::STAR) {
@@ -1745,7 +1761,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             }
             
             String op = name->name;
-            printf("os(): %.*s: %s\n", op.length, op.data, lit->bool_value ? "true" : "false");
+            // printf("os(): %.*s: %s\n", op.length, op.data, lit->bool_value ? "true" : "false");
             
             os->type_info = lit->type_info;
             os->substitution = lit;

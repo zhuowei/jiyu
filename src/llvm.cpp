@@ -1084,7 +1084,7 @@ void LLVM_Generator::emit_global_variable(Ast_Declaration *decl) {
     
     auto GV = new GlobalVariable(*llvm_module, type, is_constant, GlobalVariable::InternalLinkage, const_init, string_ref(name));
     
-    printf("EMIT GV: '%.*s'\n", name.length, name.data);
+    // printf("EMIT GV: '%.*s'\n", name.length, name.data);
 }
 
 #include <stdio.h>
