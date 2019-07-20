@@ -8,7 +8,7 @@ LLVM_URL=http://releases.llvm.org/8.0.0/llvm-$LLVM_VERSION.src.tar.xz
 
 if [ -z $LLVM_TARGETS ]
 then
-    LLVM_TARGETS="X86;ARM;AArch64"
+    LLVM_TARGETS=X86;ARM;AArch64
 fi
 
 if [[ ! -f llvm-$LLVM_VERSION.src.tar.xz ]]
