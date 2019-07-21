@@ -12,6 +12,7 @@ struct Ast_Type_Info;
 struct Atom;
 struct Ast_Type_Instantiation;
 struct Ast_Function_Call;
+struct Ast_Literal;
 
 struct Sema {
     Compiler *compiler;
@@ -19,6 +20,8 @@ struct Sema {
     Sema(Compiler *compiler) {
         this->compiler = compiler;
     }
+    
+    Ast_Literal *folds_to_literal(Ast_Expression *expression);
     
     Ast_Function *get_polymorph_for_function_call(Ast_Function *template_function, Ast_Function_Call *call);
     

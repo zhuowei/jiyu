@@ -265,11 +265,33 @@ Ast_Expression *cast_ptr_to_ptr(Ast_Expression *expr, Ast_Type_Info *target) {
 }
 
 
-Ast_Literal *make_integer_literal(s64 value, Ast_Type_Info *type_info) {
+Ast_Literal *make_integer_literal(s64 value, Ast_Type_Info *type_info, Ast *source_loc = nullptr) {
     Ast_Literal *lit = new Ast_Literal();
     lit->literal_type = Ast_Literal::INTEGER;
     lit->integer_value = value;
     lit->type_info = type_info;
+    
+    if (source_loc) lit->text_span = source_loc->text_span;
+    return lit;
+}
+
+Ast_Literal *make_float_literal(double value, Ast_Type_Info *type_info, Ast *source_loc = nullptr) {
+    Ast_Literal *lit = new Ast_Literal();
+    lit->literal_type = Ast_Literal::FLOAT;
+    lit->float_value = value;
+    lit->type_info = type_info;
+    
+    if (source_loc) lit->text_span = source_loc->text_span;
+    return lit;
+}
+
+Ast_Literal *make_bool_literal(bool value, Ast_Type_Info *bool_type_info, Ast *source_loc = nullptr) {
+    Ast_Literal *lit = new Ast_Literal();
+    lit->literal_type = Ast_Literal::BOOL;
+    lit->bool_value = value;
+    lit->type_info = bool_type_info;
+    
+    if (source_loc) lit->text_span = source_loc->text_span;
     return lit;
 }
 
@@ -403,14 +425,156 @@ Tuple<u64, Ast_Expression *> Sema::typecheck_and_implicit_cast_single_expression
     return MakeTuple(viability_score, right);
 }
 
+#define FOLD_COMPARE(op, lhs, rhs, type_info, site)                      \
+{                                                                        \
+    if (type_info->is_signed) {                                          \
+        return make_bool_literal(lhs op rhs, compiler->type_bool, site); \
+    } else {                                                             \
+        u64 l = static_cast<u64>(lhs);                                   \
+        u64 r = static_cast<u64>(rhs);                                   \
+        return make_bool_literal(l op r, compiler->type_bool, site);     \
+    }                                                                    \
+}
+
+
+
+Ast_Literal *Sema::folds_to_literal(Ast_Expression *expression) {
+    typecheck_expression(expression);
+    if (compiler->errors_reported) return nullptr;
+    
+    while (expression->substitution) expression = expression->substitution;
+    
+    if (expression->type == AST_LITERAL) return static_cast<Ast_Literal *>(expression);
+    
+    switch (expression->type) {
+        case AST_BINARY_EXPRESSION: {
+            auto bin = static_cast<Ast_Binary_Expression *>(expression);
+            assert(bin->operator_type != Token::EQUALS); // equals is not foldable and probably shouldnt come through here
+            
+            auto left = folds_to_literal(bin->left);
+            auto right = folds_to_literal(bin->right);
+            
+            if (compiler->errors_reported) return nullptr;
+            
+            if (!left || !right) return nullptr;
+            
+            auto left_type = get_type_info(left);
+            auto right_type = get_type_info(right);
+            
+            if (!types_match(left_type, right_type)) {
+                return nullptr;
+            }
+            
+            if (left_type->type == Ast_Type_Info::INTEGER) {
+                s64 left_int  = left->integer_value;
+                s64 right_int = right->integer_value;
+                switch (bin->operator_type) {
+                    // @Incomplete I think. Should we be casting back and forth between the appropriate types and s64/u64?
+                    case Token::PLUS : return make_integer_literal(left_int + right_int, left_type, bin);
+                    case Token::MINUS: return make_integer_literal(left_int - right_int, left_type, bin);
+                    case Token::STAR : return make_integer_literal(left_int * right_int, left_type, bin);
+                    case Token::SLASH: return make_integer_literal(left_int / right_int, left_type, bin);
+                    
+                    case Token::LE_OP: FOLD_COMPARE(<=, left_int, right_int, left_type, bin);
+                    case Token::GE_OP: FOLD_COMPARE(>=, left_int, right_int, left_type, bin);
+                    case Token::EQ_OP: FOLD_COMPARE(==, left_int, right_int, left_type, bin);
+                    case Token::NE_OP: FOLD_COMPARE(!=, left_int, right_int, left_type, bin);
+                    case Token::LEFT_ANGLE : FOLD_COMPARE(<,  left_int, right_int, left_type, bin);
+                    case Token::RIGHT_ANGLE: FOLD_COMPARE(>,  left_int, right_int, left_type, bin);
+                    
+                    default: assert(false);
+                }
+            } else if (left_type->type == Ast_Type_Info::FLOAT) {
+                double l = left->float_value;
+                double r = right->float_value;
+                
+                switch (bin->operator_type) {
+                    case Token::PLUS : return make_float_literal(l + r, left_type, bin);
+                    case Token::MINUS: return make_float_literal(l - r, left_type, bin);
+                    case Token::STAR : return make_float_literal(l * r, left_type, bin);
+                    case Token::SLASH: return make_float_literal(l / r, left_type, bin);
+                    
+                    case Token::LE_OP: make_bool_literal(l <= r, compiler->type_bool, bin);
+                    case Token::GE_OP: make_bool_literal(l >= r, compiler->type_bool, bin);
+                    case Token::EQ_OP: make_bool_literal(l == r, compiler->type_bool, bin);
+                    case Token::NE_OP: make_bool_literal(l != r, compiler->type_bool, bin);
+                    case Token::LEFT_ANGLE : make_bool_literal(l <  r, compiler->type_bool, bin);
+                    case Token::RIGHT_ANGLE: make_bool_literal(l >  r, compiler->type_bool, bin);
+                    
+                    default: assert(false);
+                }
+            } else {
+                return nullptr;
+            }
+        }
+        
+        case AST_UNARY_EXPRESSION: {
+            auto un = static_cast<Ast_Unary_Expression *>(expression);
+            
+            auto rhs = folds_to_literal(un->expression);
+            if (compiler->errors_reported) return nullptr;
+            if (!rhs) return nullptr;
+            
+            if (un->operator_type == Token::MINUS) {
+                auto left_type = un->type_info;
+                
+                assert(types_match(left_type, get_type_info(rhs)));
+                if (left_type->type == Ast_Type_Info::INTEGER) {
+                    // @Incomplete if we need to work about casting between the target type sizes and s64, the we probably need to do that here too.
+                    return make_integer_literal(-rhs->integer_value, left_type, un);
+                } else if (left_type->type == Ast_Type_Info::FLOAT) {
+                    return make_float_literal(-rhs->float_value, left_type, un);
+                } else {
+                    return nullptr;
+                }
+            }
+            
+            return nullptr;
+        }
+        
+        default: return nullptr;
+    }
+}
+
+void maybe_mutate_literal_to_type(Ast_Literal *lit, Ast_Type_Info *want_numeric_type) {
+    if (lit->literal_type == Ast_Literal::INTEGER) {
+        if (want_numeric_type && (want_numeric_type->type == Ast_Type_Info::INTEGER || want_numeric_type->type == Ast_Type_Info::FLOAT)) {
+            // @Incomplete check that number can fit in target type
+            // @Incomplete cast to float if we have an int literal
+            lit->type_info = want_numeric_type;
+            
+            
+            // @Cleanup I'm mutating the literal for now, but this would be a good place to use substitution, I think
+            // Or since literal ints are considered completely typeless up until this point, maybe this is the right thing to do
+            if (want_numeric_type->type == Ast_Type_Info::FLOAT) {
+                lit->literal_type = Ast_Literal::FLOAT;
+                // @Cleanup the u64 cast
+                lit->float_value = static_cast<double>((u64)lit->integer_value);
+            }
+        } else {
+            // lit->type_info = compiler->type_int32;
+        }
+    }
+    
+    if (lit->literal_type == Ast_Literal::FLOAT) {
+        if (want_numeric_type && want_numeric_type->type == Ast_Type_Info::FLOAT) lit->type_info = want_numeric_type;
+        //else lit->type_info = compiler->type_float64; // @TODO we should probably have a check that verifies if the literal can fit in a 32-bit float and then default to that.
+    }
+}
+
 // @Cleanup if we introduce expression substitution, then we can remove the resut parameters and just set (left/right)->substitution
-// actually, if we do that, then we can't really use this for checking function calls.
+// Actually, if we do that, then we can't really use this for checking function calls.
+// Actually, this is being deprecated for things other than binary operators and for-loop ranges... since function calls now use typecheck_and_implicit_cast_single_expression, declarations need only do one-way casting, returns are one-way.
+// Perhaps also, we should break this out into several calls to typecheck_and_implicit_cast_single_expression... -josh 21 July 2019
 Tuple<u64, u64> Sema::typecheck_and_implicit_cast_expression_pair(Ast_Expression *left, Ast_Expression *right, Ast_Expression **result_left, Ast_Expression **result_right, bool allow_coerce_to_ptr_void) {
-    if (left->type == AST_LITERAL) {
+    if (auto lit = folds_to_literal(left)) {
         typecheck_expression(right);
         if (compiler->errors_reported) return MakeTuple<u64, u64>(0, 0);
         
-        typecheck_expression(left, get_type_info(right));
+        // typecheck_expression(left, get_type_info(right));
+        assert(get_type_info(lit));
+        maybe_mutate_literal_to_type(lit, get_type_info(right));
+        left = lit;
     } else {
         typecheck_expression(left);
         if (compiler->errors_reported) return MakeTuple<u64, u64>(0, 0);
@@ -874,7 +1038,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 }
                 
                 // @TOOD report operator
-                
+                __debugbreak();
                 auto lhs = type_to_string(left_type);
                 auto rhs = type_to_string(right_type);
                 compiler->report_error(bin, "Incompatible types found on lhs and rhs of binary operator (%.*s, %.*s).", lhs.length, lhs.data, rhs.length, rhs.data);
@@ -906,13 +1070,8 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
         
         case AST_UNARY_EXPRESSION: {
             auto un = static_cast<Ast_Unary_Expression *>(expression);
-            if (!(un->operator_type == Token::MINUS || un->operator_type == Token::PLUS)) {
-                // passing on the wanted type here down to a potential literal is only valid
-                // for the - and + operators.
-                want_numeric_type = nullptr;
-            }
             
-            typecheck_expression(un->expression, want_numeric_type);
+            typecheck_expression(un->expression);
             if (compiler->errors_reported) return;
             
             if (un->operator_type == Token::STAR) {
