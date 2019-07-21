@@ -128,6 +128,21 @@ bool type_points_to_void_eventually(Ast_Type_Info *ptr) {
     return false;
 }
 
+// @Incomplete this should help build the fully-qualified name of the type we're talking about, not just walk up all the scopes (since the target struct may be declared within a function that is declared within a struct, which means, this info would be wrong). But perhaps, for error messages, we do want the complete tree of named scopes. Hmm...
+void maybe_add_struct_parent_name(String_Builder *builder, Ast_Scope *start) {
+    if (start->parent) maybe_add_struct_parent_name(builder, start->parent);
+    
+    if (start->owning_struct) {
+        auto _struct = start->owning_struct;
+        
+        if (_struct->identifier) {
+            String name = _struct->identifier->name->name;
+            
+            builder->print("%.*s.", name.length, name.data);
+        }
+    }
+}
+
 void print_type_to_builder(String_Builder *builder, Ast_Type_Info *info) {
     if (info->type == Ast_Type_Info::INTEGER) {
         if (info->is_signed) {
@@ -192,6 +207,18 @@ void print_type_to_builder(String_Builder *builder, Ast_Type_Info *info) {
         builder->print("] ");
         
         print_type_to_builder(builder, info->array_element);
+        return;
+    }
+    
+    if (info->type == Ast_Type_Info::STRUCT) {
+        auto _struct = info->struct_decl;
+        
+        maybe_add_struct_parent_name(builder, _struct->member_scope.parent);
+        
+        if (_struct->identifier) {
+            String name = _struct->identifier->name->name;
+            builder->print("%.*s", name.length, name.data);
+        }
         return;
     }
     
