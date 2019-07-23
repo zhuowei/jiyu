@@ -18,6 +18,17 @@
 
 #include <stdio.h>
 
+String mprintf(char *c_fmt, ...) {
+    String_Builder builder;
+
+    va_list vl;
+    va_start(vl, c_fmt);
+    builder.print_valist(c_fmt, vl);
+    va_end(vl);
+
+    return builder.to_string();
+}
+
 void convert_to_back_slashes(char *c) {
     while (*c) {
         if (*c == '/') {
@@ -181,6 +192,8 @@ extern "C" {
             }
             
             args.add(to_string("output.o"));
+
+            /*
             args.add(to_string("msvcrt.lib"));
             args.add(to_string("kernel32.lib"));
             args.add(to_string("glfw3.lib"));
@@ -189,6 +202,13 @@ extern "C" {
             args.add(to_string("shell32.lib"));
             args.add(to_string("gdi32.lib"));
             args.add(to_string("legacy_stdio_definitions.lib"));
+            */
+
+            for (auto lib: compiler->libraries) {
+                String s = lib->libname;
+                args.add(mprintf("%.*s.lib", s.length, s.data));
+            }
+
             args.add(to_string("/DEBUG"));
             
             String output_name = compiler->executable_name;
@@ -225,12 +245,16 @@ extern "C" {
         
         args.add(to_string("-o"));
         args.add(compiler->executable_name);
-        
-        args.add(to_string("-framework"));
-        args.add(to_string("OpenGL"));
-        
-        args.add(to_string("-lglfw"));
-        args.add(to_string("-lc"));
+
+        for (auto lib: compiler->libraries) {
+            if (lib->is_framework) {
+                args.add(to_string("-framework"));
+                args.add(lib->libname);
+            } else {
+                String s = lib->libname;
+                args.add(mprintf("-l%.*s", s.length, s.data)); // @Leak
+            }
+        }
         
         auto cmd_line = get_command_line(&args);
         printf("Linker line: %s\n", cmd_line);

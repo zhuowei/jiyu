@@ -38,6 +38,7 @@ enum Ast_Type {
     AST_DIRECTIVE_STATIC_IF,
     AST_SCOPE_EXPANSION,
     AST_OS,
+    AST_LIBRARY,
 };
 
 struct Ast {
@@ -342,6 +343,12 @@ struct Ast_Directive_Static_If : Ast_Directive {
     Ast_Scope *else_scope = nullptr;
 };
 
+struct Ast_Library : Ast_Expression {
+    Ast_Library() { type = AST_LIBRARY; }
+
+    bool is_framework = false;
+    String libname;
+};
 
 #define AST_NEW(type) (type *)ast_init(this, new type());
 

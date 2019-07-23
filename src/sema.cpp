@@ -1952,6 +1952,21 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             os->substitution = lit;
             return;
         }
+
+        case AST_LIBRARY: {
+            auto lib = static_cast<Ast_Library *>(expression);
+
+            // @TODO @FixMe this should be based off of what the LLVM target is
+#ifndef MACOSX
+            if (lib->is_framework) {
+                compiler->report_error(lib, "'framework' is only valid for macOS, iPadOS, iOS, tvOS, and watchOS targets.\n");
+                return;
+            }
+#endif
+
+            compiler->libraries.add(lib);
+            return;
+        }
     }
     
     assert(false);

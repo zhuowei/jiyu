@@ -629,6 +629,21 @@ Ast_Expression *Parser::parse_statement() {
     if (token->type == Token::KEYWORD_FUNC) {
         return parse_function();
     }
+
+    if (token->type == Token::KEYWORD_LIBRARY || token->type == Token::KEYWORD_FRAMEWORK) {
+        Ast_Library *lib = AST_NEW(Ast_Library);
+        lib->is_framework = (token->type == Token::KEYWORD_FRAMEWORK);
+
+        next_token();
+
+        token = peek_token();
+        if (!expect_and_eat(Token::STRING)) return nullptr;
+
+        lib->libname = token->string;
+
+        if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
+        return lib;
+    }
     
     if (token->type == Token::KEYWORD_TYPEALIAS) {
         Ast_Type_Alias *alias = AST_NEW(Ast_Type_Alias);

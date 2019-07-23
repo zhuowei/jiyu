@@ -57,6 +57,7 @@ struct Compiler {
     s64 errors_reported = 0;
     String executable_name;
     s64 instance_number = -1;
+    Array<Ast_Library *> libraries;
     
     Sema *sema;
     Copier *copier;
@@ -106,7 +107,7 @@ struct Compiler {
     
     Array<Ast_Function *>    function_emission_queue;
     Array<Ast_Declaration *> global_decl_emission_queue;
-    Array<Ast_Directive *> directive_queue;
+    Array<Ast_Directive *>   directive_queue;
     
     Compiler() {
         atom_table = new Atom_Table();

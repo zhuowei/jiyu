@@ -37,6 +37,8 @@ struct Token {
         KEYWORD_LET,
         KEYWORD_TYPEALIAS,
         KEYWORD_STRUCT,
+        KEYWORD_LIBRARY,
+        KEYWORD_FRAMEWORK,
         
         KEYWORD_IF,
         KEYWORD_ELSE,
