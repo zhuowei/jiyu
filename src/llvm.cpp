@@ -1058,7 +1058,8 @@ void LLVM_Generator::emit_function(Ast_Function *function) {
     
     if (!current_block->getTerminator()) {
         auto return_decl = function->return_decl;
-        if (return_decl) {
+        // @Cleanup early out for void types since we use i8 for pointers
+        if (return_decl && get_type_info(return_decl)->type != Ast_Type_Info::VOID) {
             irb->CreateRet(Constant::getNullValue(get_type(get_type_info(return_decl))));
         } else {
             irb->CreateRetVoid();

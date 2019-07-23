@@ -193,16 +193,12 @@ extern "C" {
             
             args.add(to_string("output.o"));
 
-            /*
-            args.add(to_string("msvcrt.lib"));
-            args.add(to_string("kernel32.lib"));
-            args.add(to_string("glfw3.lib"));
-            args.add(to_string("user32.lib"));
-            args.add(to_string("opengl32.lib"));
-            args.add(to_string("shell32.lib"));
-            args.add(to_string("gdi32.lib"));
-            args.add(to_string("legacy_stdio_definitions.lib"));
-            */
+            if (compiler->libraries.count == 0) {
+                // add default C library if no libraries are specified. This way we dont get:
+                // INK : error LNK2001: unresolved external symbol mainCRTStartup
+
+                args.add(to_string("msvcrt.lib"));
+            }
 
             for (auto lib: compiler->libraries) {
                 String s = lib->libname;

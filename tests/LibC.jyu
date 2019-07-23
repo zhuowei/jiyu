@@ -1,4 +1,9 @@
 
+#if os(Windows) {
+	library "msvcrt";
+	library "legacy_stdio_definitions";
+}
+
 typealias c_string = *uint8;
 
 func @c_function printf(fmt: c_string, temporary_c_vararg);
