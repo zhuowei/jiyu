@@ -1065,7 +1065,6 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 }
                 
                 // @TOOD report operator
-                __debugbreak();
                 auto lhs = type_to_string(left_type);
                 auto rhs = type_to_string(right_type);
                 compiler->report_error(bin, "Incompatible types found on lhs and rhs of binary operator (%.*s, %.*s).", lhs.length, lhs.data, rhs.length, rhs.data);
