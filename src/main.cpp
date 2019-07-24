@@ -191,11 +191,13 @@ extern "C" {
                 args.add(copy_string(to_string(libpath)));
             }
             
+            args.add(to_string("/NODEFAULTLIB:libcmt"));
+            
             if (compiler->libraries.count == 0) {
                 // add default C library if no libraries are specified. This way we dont get:
                 // LINK : error LNK2001: unresolved external symbol mainCRTStartup
                 
-                args.add(to_string("libcmt.lib"));
+                args.add(to_string("msvcrt.lib"));
             }
             
             for (auto lib: compiler->libraries) {

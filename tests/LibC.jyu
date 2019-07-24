@@ -1,6 +1,6 @@
 
 #if os(Windows) {
-    library "libcmt";
+    library "msvcrt";
     library "legacy_stdio_definitions";
 }
 
