@@ -1,50 +1,32 @@
+
+#load "LibC.jyu";
+
 func @c_function exit(value: int);
 func @c_function _write(fd: int, buf: *uint8, count: int);
-
-func @c_function printf(fmt: *uint8, temporary_c_vararg);
-
-typealias FILE = void;
-func @c_function fopen(path: c_string, mode: c_string) -> *FILE;
-func @c_function fclose(file: *FILE) -> int32;
-func @c_function ftell(file: *FILE) -> int32; // long int, this should be int32 on Windows but s64 on Linux/Mac
-func @c_function fread(ptr: *void, size: size_t, count: size_t, file: *FILE) -> size_t;
-
-let SEEK_SET = 0;
-let SEEK_CUR = 1;
-let SEEK_END = 2;
-
-func @c_function fseek(file: *FILE, offset: int32 /*long int*/, origin: int32);
-
-typealias size_t = uint32; // @FixMe I dont know if this is right
-
-func @c_function malloc(size: size_t) -> *void;
-func @c_function free(ptr: *void);
-
-typealias c_string = *uint8;
 
 
 func test_func() -> void {
     // @TODO verify that these things all produce expected results.
     var _int: int = 10;
     var intptr: *int;
-
+    
     // var test_error = whatever;
     
-
+    
     // intptr = *_int;
-
+    
     // var __int2: int = << <<*<<*intptr;
-
+    
     var n = *intptr;
     var n2 = <<intptr;
     var n3 = << *intptr;
     var n4 = << << *intptr;
-
+    
     // @FixMe this works in C but not here
     var n5 = <<*<<intptr;
-
+    
     // var n6 = **<< * <<*intptr;
-
+    
     var n7: ***int;
     // THIS IS SUPPOSED TO FAIL
     var n8 = *  << <<  << n7;
@@ -55,72 +37,72 @@ func main (arg: int, arg2: int) -> void {
     var my_var2 = my_var;
     // my_var = 1;
     // my_var = my_var2;
-
-   var my_string = "Hello, World!\n";
-   _write(1, "Hello, Sailor!\n".data, 15);
-   _write(1, my_string.data, 14);
-
-   printf("Test %d\n".data, my_var);
-	test_bool();
-
-   test_array();
-   exit(11);
+    
+    var my_string = "Hello, World!\n";
+    _write(1, "Hello, Sailor!\n".data, 15);
+    _write(1, my_string.data, 14);
+    
+    printf("Test %d\n".data, my_var);
+    test_bool();
+    
+    test_array();
+    exit(11);
 }
 
 func test_bool() {
-	var v = true;
-	var t = false;
-	var a = false;
-
-	var b = v;
-
-	if t {
-		printf("t is true\n".data);
-	} else {
-		printf("t is false\n".data);
-	}
-
-	if b printf("b is true\n".data);
-
-	// this printf should not execute
-	if a printf("a is true\n".data);
-
-	var i = 0;
-
-	while i != 5 {
-		printf("while_test\n".data);
-		i = i + 1;
-	}
+    var v = true;
+    var t = false;
+    var a = false;
+    
+    var b = v;
+    
+    if t {
+        printf("t is true\n".data);
+    } else {
+        printf("t is false\n".data);
+    }
+    
+    if b printf("b is true\n".data);
+    
+    // this printf should not execute
+    if a printf("a is true\n".data);
+    
+    var i = 0;
+    
+    while i != 5 {
+        printf("while_test\n".data);
+        i = i + 1;
+    }
 }
 
 func test_array() {
-	var array: [8] uint8;
-
-	array[0] = 1;
-	array[3] = 23;
-	array[5] = 2;
-
-	var i = array[5];
-	printf("i is %d\n".data, i);
-
-	printf("array[1] is %d\n".data, array[1]);
-	printf("array[3] is %d\n".data, array[3]);
-	printf("array[5] is %d\n".data, array[5]);
-
-	var static_array: [] uint8;
-	// array.data is sugar that expands to "*array[0]"
-	static_array.data = array.data;
-	// array.count expands to the literal value declared in the array brackets.
-	static_array.count = array.count;
-
-	// array[-7];
-	static_array[3] = 3;
-
-	printf("array[3] %d\n".data, array[3]);
-	printf("static_array[3] %d\n".data, static_array[3]);
-
-	var dyn: [..] uint8;
-	dyn.data = cast(*uint8) malloc(16);
-	dyn.count = 0;
-	dyn.allocated = 16;
+    var array: [8] uint8;
+    
+    array[0] = 1;
+    array[3] = 23;
+    array[5] = 2;
+    
+    var i = array[5];
+    printf("i is %d\n".data, i);
+    
+    printf("array[1] is %d\n".data, array[1]);
+    printf("array[3] is %d\n".data, array[3]);
+    printf("array[5] is %d\n".data, array[5]);
+    
+    var static_array: [] uint8;
+    // array.data is sugar that expands to "*array[0]"
+    static_array.data = array.data;
+    // array.count expands to the literal value declared in the array brackets.
+    static_array.count = array.count;
+    
+    // array[-7];
+    static_array[3] = 3;
+    
+    printf("array[3] %d\n".data, array[3]);
+    printf("static_array[3] %d\n".data, static_array[3]);
+    
+    var dyn: [..] uint8;
+    dyn.data = cast(*uint8) malloc(16);
+    dyn.count = 0;
+    dyn.allocated = 16;
 }

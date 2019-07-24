@@ -1,9 +1,9 @@
 
 func poly_test<T>(x: float) -> int {
-	return 0;
+    return 0;
 }
 
 func main() {
-	poly_test(1);
+    poly_test(1);
 }
 

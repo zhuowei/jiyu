@@ -20,12 +20,12 @@
 
 String mprintf(char *c_fmt, ...) {
     String_Builder builder;
-
+    
     va_list vl;
     va_start(vl, c_fmt);
     builder.print_valist(c_fmt, vl);
     va_end(vl);
-
+    
     return builder.to_string();
 }
 
@@ -191,21 +191,22 @@ extern "C" {
                 args.add(copy_string(to_string(libpath)));
             }
             
-            args.add(to_string("output.o"));
-
             if (compiler->libraries.count == 0) {
                 // add default C library if no libraries are specified. This way we dont get:
-                // INK : error LNK2001: unresolved external symbol mainCRTStartup
-
-                args.add(to_string("msvcrt.lib"));
+                // LINK : error LNK2001: unresolved external symbol mainCRTStartup
+                
+                args.add(to_string("libcmt.lib"));
             }
-
+            
             for (auto lib: compiler->libraries) {
                 String s = lib->libname;
                 args.add(mprintf("%.*s.lib", s.length, s.data));
             }
-
+            
+            args.add(to_string("/nologo"));
             args.add(to_string("/DEBUG"));
+            
+            args.add(to_string("output.o"));
             
             String output_name = compiler->executable_name;
             char executable_name[LINE_SIZE];
@@ -241,7 +242,7 @@ extern "C" {
         
         args.add(to_string("-o"));
         args.add(compiler->executable_name);
-
+        
         for (auto lib: compiler->libraries) {
             if (lib->is_framework) {
                 args.add(to_string("-framework"));

@@ -720,6 +720,8 @@ Ast_Function *Sema::get_polymorph_for_function_call(Ast_Function *template_funct
         typecheck_function(polymorph);
         template_function->polymorphed_overloads.add(polymorph);
     }
+    if (compiler->errors_reported) return nullptr;
+    
     assert(!polymorph->is_template_function);
     return polymorph;
 }
@@ -918,7 +920,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                         
                         typecheck_expression(decl);
                         ident->resolved_declaration = decl;
-                        ident->type_info = compiler->type_void;
+                        ident->type_info = get_type_info(decl);
                         return;
                     }
                     
@@ -928,7 +930,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 } else {
                     typecheck_expression(decl);
                     ident->resolved_declaration = decl;
-                    ident->type_info = decl->type_info;
+                    ident->type_info = get_type_info(decl);
                 }
             }
             
@@ -1244,7 +1246,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                         return;
                     }
                     
-                    assert(identifier->type_info == compiler->type_void);
+                    // assert(identifier->type_info == compiler->type_void);
                     
                     Ast_Function *function = nullptr;
                     if (overload_set.count == 1) {
@@ -1952,10 +1954,10 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             os->substitution = lit;
             return;
         }
-
+        
         case AST_LIBRARY: {
             auto lib = static_cast<Ast_Library *>(expression);
-
+            
             // @TODO @FixMe this should be based off of what the LLVM target is
 #ifndef MACOSX
             if (lib->is_framework) {
@@ -1963,7 +1965,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 return;
             }
 #endif
-
+            
             compiler->libraries.add(lib);
             return;
         }
@@ -2119,6 +2121,7 @@ void Sema::typecheck_function_header(Ast_Function *function) {
     }
     
     function->type_info = make_function_type(compiler, function);
+    assert(function->type_info->type == Ast_Type_Info::FUNCTION);
 }
 
 void Sema::typecheck_function(Ast_Function *function) {
