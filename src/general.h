@@ -105,11 +105,39 @@ inline String copy_string(String s) {
     return out;
 }
 
-inline String basename(String s) {
+inline String basepath(String s) {
+    // skip trailing slashes
+    while (s.length && (s[s.length-1] == '/' || s[s.length-1] == '\\')) {
+        s.length--;
+    }
     while (s.length) {
         if (s[s.length-1] == '/' || s[s.length-1] == '\\') return s;
         
         s.length--;
+    }
+    
+    return s;
+}
+
+inline String basename(String s) {
+    auto length = s.length;
+
+    // skip trailing slashes
+    string_length_type skip = 0;
+    while (length && (s[length-1] == '/' || s[length-1] == '\\')) {
+        length--;
+        skip++;
+    }
+
+    while (length) {
+        if (s[length-1] == '/' || s[length-1] == '\\') {
+            String out;
+            out.data   = s.data + length;
+            out.length = s.length - (length + skip); 
+            return out;
+        }
+        
+        length--;
     }
     
     return s;

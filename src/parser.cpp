@@ -780,7 +780,7 @@ Ast_Expression *Parser::parse_statement() {
             
             token = peek_token();
             String name = token->string;
-            String base_path = basename(lexer->filename);
+            String base_path = basepath(lexer->filename);
             
             next_token();
             if (!expect_and_eat(Token::SEMICOLON)) return nullptr;

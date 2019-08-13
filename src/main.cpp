@@ -137,7 +137,9 @@ func __strings_match(a: string, b: string) -> bool {
 
 )C01N";
 
-s64 __compiler_instance_count = 0;
+String __default_module_search_path;
+s64    __compiler_instance_count = 0; // @ThreadSafety
+
 
 extern "C" {
     EXPORT Compiler *create_compiler_instance() {
@@ -154,6 +156,8 @@ extern "C" {
         
         compiler->llvm_gen = new LLVM_Generator(compiler);
         compiler->llvm_gen->init();
+
+        compiler->module_search_paths.add(__default_module_search_path);
         
         perform_load_from_string(compiler, to_string((char *)preload_text), compiler->global_scope);
         
@@ -322,12 +326,47 @@ extern "C" {
     }
 }
 
-int main(int argc, char **argv) {
-    if (argc < 2) {
-        printf("ERROR: no input files %d\n", argc);
-        return -1;
+#ifdef WIN32
+String get_executable_path() {
+    const DWORD BUFFER_SIZE = 512;
+    char buf[BUFFER_SIZE];
+
+    auto module = GetModuleHandleA(nullptr);
+    GetModuleFileNameA(module, buf, BUFFER_SIZE);
+    return copy_string(to_string(buf));
+}
+#endif
+
+#ifdef MACOSX
+String get_executable_path() {
+    const u32 BUFFER_SIZE = 512;
+    char buf[BUFFER_SIZE];
+
+    u32 bufsize = BUFFER_SIZE;
+    auto result = _NSGetExecutablePath(buf, &bufsize);
+    if (result != 0) return "";
+
+    return copy_string(to_string(buf));
+}
+#endif
+
+// @Incomplete get_executable_path for Linux
+
+String get_jiyu_work_directory(String exe_dir_path) {
+    while (exe_dir_path.length) {
+        String name = basename(exe_dir_path);
+
+        if (name == to_string("jiyu")) {
+            return exe_dir_path;
+        }
+
+        exe_dir_path = basepath(exe_dir_path);
     }
-    
+
+    return exe_dir_path;
+}
+
+int main(int argc, char **argv) {
     String filename;
     bool is_metaprogram = false;
     
@@ -337,6 +376,16 @@ int main(int argc, char **argv) {
         } else {
             filename = to_string(argv[i]);
         }
+    }
+
+    {
+        String path = get_executable_path();
+        String working_dir = get_jiyu_work_directory(basepath(path));
+
+        __default_module_search_path = mprintf("%.*smodules", working_dir.length, working_dir.data);
+        printf("Modules path: %.*s\n", __default_module_search_path.length, __default_module_search_path.data);
+
+        free(path.data);
     }
     
     auto compiler = create_compiler_instance();

@@ -56,8 +56,10 @@ struct Compiler {
     bool is_metaprogram = false;
     s64 errors_reported = 0;
     String executable_name;
+
     s64 instance_number = -1;
     Array<Ast_Library *> libraries;
+    Array<String> module_search_paths;
     
     Sema *sema;
     Copier *copier;
