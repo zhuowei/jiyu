@@ -225,8 +225,8 @@ void Compiler::resolve_directives() {
             auto name = load->target_filename;
             // printf("%d DEBUG: load '%.*s'\n", this->instance_number, name.length, name.data);
             
-            void perform_load(Compiler *compiler, String filename, Ast_Scope *target_scope);
-            perform_load(this, load->target_filename, load->target_scope);
+            void perform_load(Compiler *compiler, Ast *ast, String filename, Ast_Scope *target_scope);
+            perform_load(this, load, load->target_filename, load->target_scope);
             
             if (this->errors_reported) return;
             
@@ -273,14 +273,15 @@ void Compiler::resolve_directives() {
 
                 // printf("%d DEBUG: import '%.*s'\n", this->instance_number, name.length, name.data);
 
-                void perform_load(Compiler *compiler, String filename, Ast_Scope *target_scope);
-                perform_load(this, import->target_filename, import->imported_scope);
+                void perform_load(Compiler *compiler, Ast *ast, String filename, Ast_Scope *target_scope);
+                perform_load(this, import, import->target_filename, import->imported_scope);
 
                 this->loaded_imports.add(import);
             }
 
             Ast_Scope_Expansion *exp = new Ast_Scope_Expansion();
             exp->text_span = import->imported_scope->text_span;
+            exp->filename = import->imported_scope->filename;
             
             import->scope_i_belong_to->private_declarations.add(exp);
             
@@ -355,7 +356,8 @@ void Compiler::resolve_directives() {
                 
                 Ast_Scope_Expansion *exp = new Ast_Scope_Expansion();
                 exp->text_span = chosen_block->text_span;
-                
+                exp->filename = chosen_block->filename;
+
                 _if->scope_i_belong_to->declarations.add(exp);
                 
                 exp->scope = chosen_block;
@@ -487,4 +489,15 @@ void Compiler::report_error(Ast *ast, char *fmt, ...) {
     
     report_error_valist(filename, source, span, fmt, args);
     va_end(args);
+}
+
+bool Compiler::is_toplevel_scope(Ast_Scope *scope) {
+    if (scope == this->global_scope)  return true;
+    if (scope == this->preload_scope) return true;
+
+    for (auto module: this->loaded_imports) {
+        if (scope == module->imported_scope) return true;
+    }
+
+    return false;
 }

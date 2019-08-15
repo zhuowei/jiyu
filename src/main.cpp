@@ -70,11 +70,11 @@ void perform_load_from_string(Compiler *compiler, String source, Ast_Scope *targ
     parser->parse_scope(target_scope, false);
 }
 
-void perform_load(Compiler *compiler, String filename, Ast_Scope *target_scope) {
+void perform_load(Compiler *compiler, Ast *ast, String filename, Ast_Scope *target_scope) {
     String source;
     bool success = read_entire_file(filename, &source);
     if (!success) {
-        compiler->report_error((Token *)nullptr, "Could not open file: %.*s\n", (int)filename.length, filename.data);
+        compiler->report_error(ast, "Could not open file: %.*s\n", (int)filename.length, filename.data);
         return;
     }
     
@@ -260,7 +260,7 @@ extern "C" {
     }
     
     EXPORT bool compiler_load_file(Compiler *compiler, String filename) {
-        perform_load(compiler, filename, compiler->global_scope);
+        perform_load(compiler, nullptr, filename, compiler->global_scope);
         
         return compiler->errors_reported == 0;
     }
@@ -271,7 +271,13 @@ extern "C" {
         
         assert(compiler->directive_queue.count == 0);
         
+        compiler->sema->typecheck_scope(compiler->preload_scope);
         compiler->sema->typecheck_scope(compiler->global_scope);
+
+        for (auto import: compiler->loaded_imports) {
+            // assert(import->imported_scope->type_info);
+            compiler->sema->typecheck_scope(import->imported_scope);
+        }
         
         // set metaprogram status if main is marked @metaprogram
         if (!compiler->errors_reported) {
@@ -299,7 +305,7 @@ extern "C" {
         
         for (auto decl: compiler->global_decl_emission_queue) {
             assert(!decl->is_let);
-            assert(decl->identifier->enclosing_scope == compiler->global_scope);
+            assert(compiler->is_toplevel_scope(decl->identifier->enclosing_scope));
             
             compiler->llvm_gen->emit_global_variable(decl);
         }

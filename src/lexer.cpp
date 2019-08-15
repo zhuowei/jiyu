@@ -270,6 +270,7 @@ Token Lexer::lex_token() {
         Token out;
         out.type = Token::INTEGER;
         out.text_span = value.text_span;
+        out.filename = value.filename;
         
         for (string_length_type i = 0; i < st.length; ++i) {
             out.integer = out.integer | (((u64)st[i] & 0xFF) << i*8);

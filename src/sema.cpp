@@ -6,6 +6,11 @@
 
 #include <stdio.h>
 
+inline void copy_location_info(Ast *left, Ast *right) {
+    left->text_span = right->text_span;
+    left->filename  = right->filename;
+}
+
 void add_type(String_Builder *builder, Ast_Type_Info *type) {
     if (type->type == Ast_Type_Info::INTEGER) {
         if (type->is_signed) builder->putchar('s');
@@ -240,7 +245,7 @@ Ast_Expression *cast_int_to_int(Ast_Expression *expr, Ast_Type_Info *target) {
     if (target->size == expr->type_info->size) return expr;
     
     Ast_Cast *cast = new Ast_Cast();
-    cast->text_span = expr->text_span;
+    copy_location_info(cast, expr);
     cast->expression = expr;
     // cast->target_type_inst = nullptr;
     cast->type_info = target;
@@ -256,7 +261,7 @@ Ast_Expression *cast_float_to_float(Ast_Expression *expr, Ast_Type_Info *target)
     if (target->size == expr->type_info->size) return expr;
     
     Ast_Cast *cast = new Ast_Cast();
-    cast->text_span = expr->text_span;
+    copy_location_info(cast, expr);
     cast->expression = expr;
     // cast->target_type_info = nullptr;
     cast->type_info = target;
@@ -270,7 +275,7 @@ Ast_Expression *cast_int_to_float(Ast_Expression *expr, Ast_Type_Info *target) {
     assert(target->type == Ast_Type_Info::FLOAT);
     
     Ast_Cast *cast = new Ast_Cast();
-    cast->text_span = expr->text_span;
+    copy_location_info(cast, expr);
     cast->expression = expr;
     // cast->target_type_info = nullptr;
     cast->type_info = target;
@@ -285,7 +290,7 @@ Ast_Expression *cast_ptr_to_ptr(Ast_Expression *expr, Ast_Type_Info *target) {
     assert(target->type == Ast_Type_Info::POINTER);
     
     Ast_Cast *cast = new Ast_Cast();
-    cast->text_span = expr->text_span;
+    copy_location_info(cast, expr);
     cast->expression = expr;
     cast->type_info = target;
     return cast;
@@ -298,7 +303,7 @@ Ast_Literal *make_integer_literal(s64 value, Ast_Type_Info *type_info, Ast *sour
     lit->integer_value = value;
     lit->type_info = type_info;
     
-    if (source_loc) lit->text_span = source_loc->text_span;
+    if (source_loc) copy_location_info(lit, source_loc);
     return lit;
 }
 
@@ -308,7 +313,7 @@ Ast_Literal *make_float_literal(double value, Ast_Type_Info *type_info, Ast *sou
     lit->float_value = value;
     lit->type_info = type_info;
     
-    if (source_loc) lit->text_span = source_loc->text_span;
+    if (source_loc) copy_location_info(lit, source_loc);
     return lit;
 }
 
@@ -318,7 +323,7 @@ Ast_Literal *make_bool_literal(bool value, Ast_Type_Info *bool_type_info, Ast *s
     lit->bool_value = value;
     lit->type_info = bool_type_info;
     
-    if (source_loc) lit->text_span = source_loc->text_span;
+    if (source_loc) copy_location_info(lit, source_loc);
     return lit;
 }
 
@@ -340,10 +345,10 @@ Ast_Array_Dereference *make_array_index(Ast_Expression *array, Ast_Expression *i
 // @Note MUST typecheck the return value of this!!!
 Ast_Dereference *make_derefence(Ast_Expression *aggregate_expression, Atom *field) {
     auto ident = make_identifier(field);
-    ident->text_span = aggregate_expression->text_span;
+    copy_location_info(ident, aggregate_expression);
     
     Ast_Dereference *deref = new Ast_Dereference();
-    deref->text_span = aggregate_expression->text_span;
+    copy_location_info(deref, aggregate_expression);
     deref->left = aggregate_expression;
     deref->field_selector = ident;
     return deref;
@@ -927,6 +932,14 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             expression->type_info = compiler->type_void;
             return;
         }
+        case AST_DIRECTIVE_IMPORT: {
+            // @TODO Should we assert or error here if the directive has not yet been executed?
+            auto import = static_cast<Ast_Directive_Import *>(expression);
+            expression->type_info = compiler->type_void;
+
+            typecheck_scope(import->imported_scope);
+            return;
+        }
         case AST_DIRECTIVE_STATIC_IF: {
             expression->type_info = compiler->type_void;
             return;
@@ -1027,7 +1040,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 decl->type_info = decl->initializer_expression->type_info;
             }
             
-            if (!decl->is_let && decl->identifier && decl->identifier->enclosing_scope == compiler->global_scope) {
+            if (!decl->is_let && decl->identifier && compiler->is_toplevel_scope(decl->identifier->enclosing_scope)) {
                 if (decl->initializer_expression && !resolves_to_literal_value(decl->initializer_expression)) {
                     compiler->report_error(decl, "Global variable may only be initialized by a literal expression.\n");
                 }
@@ -1129,9 +1142,10 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             if (bin->operator_type == Token::EQ_OP) {
                 if (left_type->type == Ast_Type_Info::STRING) {
                     Ast_Function_Call *call = new Ast_Function_Call();
-                    call->text_span = bin->text_span;
-                    
+                    copy_location_info(call, bin);
+
                     auto identifier = make_identifier(compiler->atom___strings_match);
+                    copy_location_info(identifier, bin);
                     identifier->enclosing_scope = compiler->global_scope;
                     
                     call->function_or_function_ptr = identifier;
@@ -1275,7 +1289,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     }
                     
                     Ast_Os *os = new Ast_Os();
-                    os->text_span = call->text_span;
+                    copy_location_info(os, call);
                     os->expression = call->argument_list[0];
                     typecheck_expression(os);
                     call->substitution = os;
@@ -1382,8 +1396,8 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 // here we insert some desugaring that expands pointer.field into (<<pointer).field
                 
                 auto un = make_unary(Token::DEREFERENCE_OR_SHIFT, deref->left);
-                un->text_span = deref->left->text_span;
-                
+                copy_location_info(un, deref);
+
                 typecheck_expression(un);
                 deref->left = un; // Dont set substitution here, otherwise we'll infinite loop
             }
@@ -1480,19 +1494,19 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     
                     if (field_atom == compiler->atom_data) {
                         auto index_lit = make_integer_literal(0, compiler->type_array_count);
-                        index_lit->text_span = deref->text_span;
+                        copy_location_info(index_lit, deref);
                         
                         auto index = make_array_index(deref->left, index_lit);
-                        index->text_span = deref->text_span;
+                        copy_location_info(index, deref);
                         
                         auto addr = make_unary(Token::STAR, index);
-                        addr->text_span = deref->text_span;
+                        copy_location_info(addr, deref);
                         
                         typecheck_expression(addr);
                         deref->substitution = addr;
                     } else if (field_atom == compiler->atom_count) {
                         auto lit = make_integer_literal(left_type->array_element_count, compiler->type_array_count);
-                        lit->text_span = deref->text_span;
+                        copy_location_info(lit, deref);
                         deref->substitution = lit;
                     } else {
                         String field_name = field_atom->name;
@@ -1650,13 +1664,13 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                 
                 auto zero = make_integer_literal(0, get_type_info(count_expr));
                 auto it_index_ident = make_identifier(compiler->atom_it_index);
-                it_index_ident->text_span = _for->text_span;
+                copy_location_info(it_index_ident, _for);
                 it_index_ident->enclosing_scope = &_for->body;
                 {
                     Ast_Declaration *decl = new Ast_Declaration();
-                    decl->text_span  = _for->text_span;
+                    copy_location_info(decl, _for);
                     decl->identifier = it_index_ident;
-                    decl->identifier->text_span = _for->text_span;
+                    copy_location_info(decl->identifier, _for);
                     decl->initializer_expression = zero;
                     decl->is_let = true;
                     decl->is_readonly_variable = true;
@@ -1671,8 +1685,9 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
                     auto indexed = make_array_index(_for->initial_iterator_expression, it_index_ident);
                     
                     Ast_Declaration *decl = new Ast_Declaration();
-                    decl->text_span  = _for->text_span;
+                    copy_location_info(decl, _for);
                     decl->identifier = make_identifier(compiler->atom_it);
+                    copy_location_info(decl->identifier, decl);
                     decl->initializer_expression = indexed;
                     decl->is_let = true;
                     decl->is_readonly_variable = true;
@@ -1688,9 +1703,9 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             if (!_for->iterator_decl) {
                 // for integer ranges only
                 Ast_Declaration *decl = new Ast_Declaration();
-                decl->text_span  = _for->text_span;
+                copy_location_info(decl, _for);
                 decl->identifier = make_identifier(compiler->atom_it);
-                decl->identifier->text_span = _for->text_span;
+                copy_location_info(decl->identifier, _for);
                 decl->identifier->enclosing_scope = &_for->body;
                 decl->initializer_expression = _for->initial_iterator_expression;
                 decl->is_let = true;
@@ -1950,8 +1965,8 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             assert(type->size >= 0);
             
             auto lit = make_integer_literal(type->size, compiler->type_int32);
-            lit->text_span = size->text_span;
-            
+            copy_location_info(lit, size);
+
             size->type_info = lit->type_info;
             size->substitution = lit;
             return;
@@ -1974,7 +1989,7 @@ void Sema::typecheck_expression(Ast_Expression *expression, Ast_Type_Info *want_
             
             auto ident = static_cast<Ast_Identifier *>(expr);
             Ast_Literal *lit = new Ast_Literal();
-            lit->text_span = os->text_span;
+            copy_location_info(lit, os);
             lit->literal_type = Ast_Literal::BOOL;
             lit->type_info = compiler->type_bool;
             lit->bool_value = false;

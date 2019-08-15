@@ -1,4 +1,6 @@
 
+#import "GLFW"; // for glfwGetProcAddress
+
 #if os(Windows) {
     library "opengl32";
 }

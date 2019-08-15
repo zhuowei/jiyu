@@ -131,6 +131,8 @@ struct Compiler {
     void report_error_valist(String filename, String source, Span error_location, char *fmt, va_list args);
     void report_error(Token *tok, char *fmt, ...);
     void report_error(Ast *ast, char *fmt, ...);
+
+    bool is_toplevel_scope(Ast_Scope *scope);
 };
 
 Ast_Type_Info *make_pointer_type(Ast_Type_Info *pointee);

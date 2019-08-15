@@ -352,6 +352,9 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
         
         case AST_SCOPE_EXPANSION: {
             auto exp = static_cast<Ast_Scope_Expansion *>(expression);
+
+            if (exp->expanded_via_import_directive) return nullptr;
+
             emit_scope(exp->scope);
             return nullptr;
         }
@@ -566,7 +569,7 @@ Value *LLVM_Generator::emit_expression(Ast_Expression *expression, bool is_lvalu
                     return emit_expression(decl->initializer_expression);
                 }
                 
-                if (decl->identifier && decl->identifier->enclosing_scope == compiler->global_scope) {
+                if (decl->identifier && compiler->is_toplevel_scope(decl->identifier->enclosing_scope)) {
                     String name = decl->identifier->name->name;
                     auto value = llvm_module->getNamedGlobal(string_ref(name));
                     assert(value);
@@ -997,6 +1000,22 @@ Function *LLVM_Generator::get_or_create_function(Ast_Function *function) {
 void LLVM_Generator::emit_scope(Ast_Scope *scope) {
     // setup variable mappings
     for (auto it : scope->declarations) {
+        while (it->substitution) it = it->substitution;
+        
+        if (it->type != AST_DECLARATION) continue;
+        auto decl = static_cast<Ast_Declaration *>(it);
+        
+        auto alloca = create_alloca_in_entry(irb, get_type(get_type_info(it)));
+        
+        if (decl->identifier) {
+            alloca->setName(string_ref(decl->identifier->name->name));
+        }
+        
+        assert(get_value_for_decl(decl) == nullptr);
+        decl_value_map.add(MakeTuple(decl, alloca));
+    }
+
+    for (auto it : scope->private_declarations) {
         while (it->substitution) it = it->substitution;
         
         if (it->type != AST_DECLARATION) continue;

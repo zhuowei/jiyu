@@ -12,6 +12,7 @@
 
 Ast *init_copy(Ast* _new, Ast *old) {
     _new->text_span = old->text_span;
+    _new->filename = old->filename;
     return _new;
 }
 
