@@ -1,4 +1,5 @@
-#load "LibC.jyu";
+#import "Basic";
+#import "LibC";
 
 func test(a: int32) -> bool {
     printf("A: %d\n".data, a);

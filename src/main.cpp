@@ -7,6 +7,7 @@
 #include "llvm.h"
 #include "sema.h"
 #include "copier.h"
+#include "os_support.h"
 
 #ifdef WIN32
 #include "microsoft_craziness.h"
@@ -27,16 +28,6 @@ String mprintf(char *c_fmt, ...) {
     va_end(vl);
     
     return builder.to_string();
-}
-
-void convert_to_back_slashes(char *c) {
-    while (*c) {
-        if (*c == '/') {
-            *c = '\\';
-        }
-        
-        ++c;
-    }
 }
 
 bool read_entire_file(String filepath, String *result) {
@@ -159,7 +150,7 @@ extern "C" {
 
         compiler->module_search_paths.add(__default_module_search_path);
         
-        perform_load_from_string(compiler, to_string((char *)preload_text), compiler->global_scope);
+        perform_load_from_string(compiler, to_string((char *)preload_text), compiler->preload_scope);
         
         return compiler;
     }
@@ -325,32 +316,6 @@ extern "C" {
         return compiler->errors_reported == 0;
     }
 }
-
-#ifdef WIN32
-String get_executable_path() {
-    const DWORD BUFFER_SIZE = 512;
-    char buf[BUFFER_SIZE];
-
-    auto module = GetModuleHandleA(nullptr);
-    GetModuleFileNameA(module, buf, BUFFER_SIZE);
-    return copy_string(to_string(buf));
-}
-#endif
-
-#ifdef MACOSX
-String get_executable_path() {
-    const u32 BUFFER_SIZE = 512;
-    char buf[BUFFER_SIZE];
-
-    u32 bufsize = BUFFER_SIZE;
-    auto result = _NSGetExecutablePath(buf, &bufsize);
-    if (result != 0) return "";
-
-    return copy_string(to_string(buf));
-}
-#endif
-
-// @Incomplete get_executable_path for Linux
 
 String get_jiyu_work_directory(String exe_dir_path) {
     while (exe_dir_path.length) {

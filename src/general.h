@@ -143,6 +143,27 @@ inline String basename(String s) {
     return s;
 }
 
+inline void convert_to_back_slashes(char *c) {
+    while (*c) {
+        if (*c == '/') {
+            *c = '\\';
+        }
+        
+        ++c;
+    }
+}
+
+inline void convert_to_forward_slashes(char *c) {
+    while (*c) {
+        if (*c == '\\') {
+            *c = '/';
+        }
+        
+        ++c;
+    }
+}
+
+
 struct Span {
     string_length_type start;
     string_length_type length;

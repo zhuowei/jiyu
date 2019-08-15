@@ -1,5 +1,5 @@
 
-#load "LibC.jyu";
+#import "LibC";
 
 func main() {
     var arr: [10] uint8;

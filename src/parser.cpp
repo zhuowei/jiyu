@@ -792,6 +792,22 @@ Ast_Expression *Parser::parse_statement() {
             load->target_filename = copy_string(to_string(fullname));
             load->target_scope    = get_current_scope();
             return load;
+        } else if (token->type == Token::IDENTIFIER && token->string == to_string("import")) {
+            if (!expect_and_eat(Token::IDENTIFIER)) return nullptr;
+            
+            Ast_Directive_Import *import = AST_NEW(Ast_Directive_Import);
+            import->scope_i_belong_to = get_current_canonical_scope();
+            compiler->queue_directive(import);
+            
+            token = peek_token();
+            String name = token->string;
+            
+            next_token();
+            if (!expect_and_eat(Token::SEMICOLON)) return nullptr;
+            
+            import->target_filename = copy_string(name); // fullname will be resolved when the directive is resolved.
+            import->target_scope    = get_current_scope();
+            return import;
         } else if (token->type == Token::KEYWORD_IF) {
             if (!expect_and_eat(Token::KEYWORD_IF)) return nullptr;
             

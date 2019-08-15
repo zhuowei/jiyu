@@ -1,5 +1,5 @@
 
-#load "Compiler.jyu";
+#import "Compiler";
 
 func main() {
     var compiler = create_compiler_instance();

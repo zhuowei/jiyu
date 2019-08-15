@@ -2,6 +2,8 @@
 #if os(Windows) {
     library "msvcrt";
     library "legacy_stdio_definitions";
+} else {
+    library "c";
 }
 
 typealias c_string = *uint8;

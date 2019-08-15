@@ -4,7 +4,7 @@
 		
 	} else {
 		#if true {
-			#load "LibC.jyu";
+			#import "LibC";
 		}
 	}
 }

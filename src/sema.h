@@ -26,10 +26,10 @@ struct Sema {
     Ast_Function *get_polymorph_for_function_call(Ast_Function *template_function, Ast_Function_Call *call);
     
     Tuple<bool, u64> function_call_is_viable(Ast_Function_Call *call, Ast_Type_Info *function_type, bool do_errors);
-    void collect_function_overloads_for_atom_in_scope(Atom *atom, Ast_Scope *start, Array<Ast_Function *> *overload_set);
-    void collect_function_overloads_for_atom(Atom *atom, Ast_Scope *start, Array<Ast_Function *> *overload_set);
-    Ast_Expression *find_declaration_for_atom(Atom *atom, Ast_Scope *start);
-    Ast_Expression *find_declaration_for_atom_in_scope(Ast_Scope *scope, Atom *atom);
+    void collect_function_overloads_for_atom_in_scope(Atom *atom, Ast_Scope *start, Array<Ast_Function *> *overload_set, bool check_private_declarations = true);
+    void collect_function_overloads_for_atom(Atom *atom, Ast_Scope *start, Array<Ast_Function *> *overload_set, bool check_private_declarations = true);
+    Ast_Expression *find_declaration_for_atom(Atom *atom, Ast_Scope *start, bool check_private_declarations = true);
+    Ast_Expression *find_declaration_for_atom_in_scope(Ast_Scope *scope, Atom *atom, bool check_private_declarations = true);
     
     Ast_Type_Info *resolve_type_inst(Ast_Type_Instantiation *type_inst);
     

@@ -4,6 +4,7 @@
 #include "lexer.h"
 #include "parser.h"
 #include "sema.h"
+#include "os_support.h"
 
 #include <stdio.h> // for vprintf
 
@@ -180,7 +181,7 @@ void Compiler::init() {
 }
 
 void Compiler::queue_directive(Ast_Directive *directive) {
-    assert(directive->type == AST_DIRECTIVE_LOAD || directive->type == AST_DIRECTIVE_STATIC_IF);
+    assert(directive->type == AST_DIRECTIVE_LOAD || directive->type == AST_DIRECTIVE_STATIC_IF || directive->type == AST_DIRECTIVE_IMPORT);
     
     directive_queue.add(directive);
 }
@@ -226,6 +227,66 @@ void Compiler::resolve_directives() {
             
             void perform_load(Compiler *compiler, String filename, Ast_Scope *target_scope);
             perform_load(this, load->target_filename, load->target_scope);
+            
+            if (this->errors_reported) return;
+            
+            directive_queue.ordered_remove(0);
+        } else if (directive->type == AST_DIRECTIVE_IMPORT) {
+            // @Incomplete we need a way to stop imports into a module scope from leaking into the global scope lookup
+            auto import = static_cast<Ast_Directive_Import *>(directive);
+            
+            auto name = import->target_filename;
+
+            bool success = false;
+            for (auto &module_path : this->module_search_paths) {
+                String mprintf(char *c_fmt, ...);
+                String fullpath = mprintf("%.*s/%.*s.jyu", module_path.length, module_path.data, name.length, name.data);
+
+                if (file_exists(fullpath)) {
+                    name = fullpath; // @Leak
+                    success = true;
+                    break;
+                }
+            }
+
+            if (!success) {
+                this->report_error(import, "Could not find a module named %.*s.\n", name.length, name.data);
+                return;
+            }
+
+            import->target_filename = name;
+
+            success = false;
+            for (auto im : this->loaded_imports) {
+                // @Incomplete target_filename should be canonicalized
+                if (im->target_filename == name) {
+                    import->imported_scope = im->imported_scope;
+                    success = true;
+                    break;
+                }
+            }
+
+            if (!success) {
+                Ast_Scope *scope = new Ast_Scope();
+                scope->parent = this->preload_scope;
+                import->imported_scope = scope;
+
+                // printf("%d DEBUG: import '%.*s'\n", this->instance_number, name.length, name.data);
+
+                void perform_load(Compiler *compiler, String filename, Ast_Scope *target_scope);
+                perform_load(this, import->target_filename, import->imported_scope);
+
+                this->loaded_imports.add(import);
+            }
+
+            Ast_Scope_Expansion *exp = new Ast_Scope_Expansion();
+            exp->text_span = import->imported_scope->text_span;
+            
+            import->scope_i_belong_to->private_declarations.add(exp);
+            
+            exp->scope = import->imported_scope;
+            exp->expanded_via_import_directive = import;
+            import->substitution = exp;
             
             if (this->errors_reported) return;
             

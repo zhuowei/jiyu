@@ -21,6 +21,7 @@ set (JIYU_SRCS
     src/llvm.cpp
     src/sema.cpp
     src/copier.cpp
+    src/os_support.cpp
 )
 
 
@@ -39,11 +40,11 @@ else()
 endif()
 
 if (APPLE)
-    add_definitions(-DMACOSX)
+    add_definitions(-DMACOSX -DUNIX)
 endif()
 
 if (LINUX)
-    add_definitions(-DLINUX)
+    add_definitions(-DLINUX  -DUNIX)
 endif ()
 
 

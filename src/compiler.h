@@ -18,7 +18,6 @@ struct Copier;
 struct Atom {
     String name;
     u32 hash;
-    
 };
 
 struct Atom_Table {
@@ -60,6 +59,7 @@ struct Compiler {
     s64 instance_number = -1;
     Array<Ast_Library *> libraries;
     Array<String> module_search_paths;
+    Array<Ast_Directive_Import *> loaded_imports;
     
     Sema *sema;
     Copier *copier;
@@ -67,6 +67,7 @@ struct Compiler {
     
     Atom_Table *atom_table;
     
+    Ast_Scope *preload_scope;
     Ast_Scope *global_scope;
     
     Ast_Type_Info *type_void;
@@ -113,7 +114,9 @@ struct Compiler {
     
     Compiler() {
         atom_table = new Atom_Table();
-        global_scope = new Ast_Scope();
+        preload_scope = new Ast_Scope();
+        global_scope  = new Ast_Scope();
+        global_scope->parent = preload_scope;
     }
     
     char *get_temp_c_string(String s);

@@ -35,6 +35,7 @@ enum Ast_Type {
     AST_FOR,
     AST_STRUCT,
     AST_DIRECTIVE_LOAD,
+    AST_DIRECTIVE_IMPORT,
     AST_DIRECTIVE_STATIC_IF,
     AST_SCOPE_EXPANSION,
     AST_OS,
@@ -114,6 +115,7 @@ struct Ast_Scope : Ast_Expression {
     Ast_Scope *parent = nullptr;
     Array<Ast_Expression *> statements;
     Array<Ast_Expression *> declarations; // really should only contain Ast_Declaration and Ast_Function
+    Array<Ast_Expression *> private_declarations;
     
     bool is_template_argument_block = false;
     bool rejected_by_static_if = false;
@@ -129,6 +131,7 @@ struct Ast_Scope_Expansion : Ast_Expression {
     Ast_Scope_Expansion() { type = AST_SCOPE_EXPANSION; }
     
     Ast_Scope *scope = nullptr;
+    Ast_Expression *expanded_via_import_directive = nullptr;
 };
 
 struct Ast_Type_Instantiation : Ast_Expression {
@@ -331,6 +334,14 @@ struct Ast_Directive_Load : Ast_Directive {
     Ast_Directive_Load() { type = AST_DIRECTIVE_LOAD; }
     
     Ast_Scope *target_scope;
+    String     target_filename;
+};
+
+struct Ast_Directive_Import : Ast_Directive {
+    Ast_Directive_Import() { type = AST_DIRECTIVE_IMPORT; }
+
+    Ast_Scope *target_scope;
+    Ast_Scope *imported_scope = nullptr;
     String     target_filename;
 };
 

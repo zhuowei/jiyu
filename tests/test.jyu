@@ -1,5 +1,5 @@
 
-#load "LibC.jyu";
+#import "LibC";
 
 func @c_function exit(value: int);
 func @c_function _write(fd: int, buf: *uint8, count: int);
